@@ -2,6 +2,14 @@
 
 Quick guide to running Message Similarity Clustering locally.
 
+## Problem Statement
+
+Creators receive hundreds of similar inbound messages daily — pricing questions, availability requests, support issues. Responding individually is time-consuming and repetitive.
+
+**This system automatically groups messages with the same underlying intent** so creators can craft one reply and send it to many people. For example, ten variations of "How much do you charge?" become a single cluster requiring just one response.
+
+Key insight: **Clusters represent same intent, not identical wording.** The system uses semantic similarity (OpenAI embeddings) to group "What are your rates?" and "How much do you charge?" together, even though the text differs.
+
 ## Prerequisites
 
 - Docker Desktop or OrbStack
@@ -164,6 +172,18 @@ Tests use `EMBEDDING_PROVIDER=stub` (configured in `.env.test`) for speed and de
 4. **Remove a message** - verify cluster updates
 5. **Send bulk reply** - verify cluster marked as "Actioned"
 6. **Seed again** - verify supersede logic (old messages replaced)
+
+## Known Limitations
+
+This POC demonstrates core functionality but has known constraints:
+
+- **Mixed-intent clustering**: Messages sharing keywords but different intents may cluster together if phrased similarly (e.g., "How much do you charge?" and "When are you available?" both mention "collaboration")
+- **Threshold tuning is heuristic**: No single threshold works perfectly for all creators or message types - requires experimentation based on observed clustering quality
+- **Short messages are noisy**: Very brief messages ("price?", "available?") have less semantic signal and may cluster incorrectly or create singleton clusters
+- **No message classification**: All inbound messages are clustered, including greetings, acknowledgments, and off-topic questions (production should integrate with existing classification)
+- **No creator-specific customization**: All creators share the same thresholds and clustering behavior
+
+These are expected for a POC. See [Future Enhancements](./future-enhancements.md) for planned improvements.
 
 ---
 
