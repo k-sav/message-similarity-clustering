@@ -1,6 +1,6 @@
 # Performance Guide
 
-Optimization strategies for scaling similarity clustering.
+Optimization strategies for scaling message similarity clustering.
 
 ## Current Performance (POC)
 

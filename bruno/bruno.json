@@ -1,5 +1,5 @@
 {
   "version": 1,
   "type": "collection",
-  "name": "similarity-buckets-poc"
+  "name": "message-similarity-clustering"
 }

@@ -1,7 +1,7 @@
 {
-  "name": "similarity-buckets-poc",
+  "name": "message-similarity-clustering",
   "version": "1.0.0",
-  "description": "",
+  "description": "AI-powered similarity clustering for bulk message replies",
   "main": "dist/main.js",
   "scripts": {
     "start": "node dist/main.js",

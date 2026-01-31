@@ -1,6 +1,6 @@
 # Production Migration Guide
 
-Step-by-step guide for deploying similarity clustering to your production application.
+Step-by-step guide for deploying message similarity clustering to your production application.
 
 ## Pre-Migration Checklist
 

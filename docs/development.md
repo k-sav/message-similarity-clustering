@@ -13,11 +13,13 @@ docker-compose up --build
 ```
 
 **Pros:**
+
 - Consistent environment
 - No local dependencies needed
 - Matches production setup
 
 **Cons:**
+
 - Slower hot-reload
 - More difficult to debug
 
@@ -42,15 +44,18 @@ npm run dev
 ```
 
 **Pros:**
+
 - Fast hot-reload (instant)
 - Easy to add breakpoints
 - Native IDE integration
 
 **Cons:**
+
 - Requires Node.js 20+ installed
 - Environment differences from production
 
 **Connection strings for local:**
+
 ```bash
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/similarity_poc
 REDIS_URL=redis://localhost:6379
@@ -70,10 +75,12 @@ Uses `ts-node-dev` for automatic restart on file changes:
 ```
 
 **Restart triggered by:**
+
 - Any `.ts` file change in `src/`
 - Not triggered by `.env` changes (requires manual restart)
 
 **Disable hot reload:**
+
 ```bash
 npm run start  # Standard ts-node, no watch
 ```
@@ -90,12 +97,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    hmr: true  // Default: enabled
-  }
-})
+    hmr: true, // Default: enabled
+  },
+});
 ```
 
 **Full reload triggered by:**
+
 - `vite.config.ts` changes
 - `tailwind.config.js` changes
 - Environment variable changes
@@ -115,6 +123,7 @@ docker-compose up api
 ```
 
 **Common packages:**
+
 ```bash
 npm install @nestjs/axios axios  # HTTP client
 npm install class-validator class-transformer  # Validation
@@ -135,6 +144,7 @@ docker-compose up frontend
 ```
 
 **Common packages:**
+
 ```bash
 npm install date-fns  # Date formatting (already installed)
 npm install react-hook-form  # Form management
@@ -149,10 +159,10 @@ npm install zod  # Schema validation
 
 ```bash
 # From host
-docker exec -it similarity-buckets-poc-postgres-1 psql -U postgres -d similarity_poc
+docker exec -it message-similarity-clustering-postgres-1 psql -U postgres -d similarity_poc
 
 # From inside container
-docker exec -it similarity-buckets-poc-postgres-1 bash
+docker exec -it message-similarity-clustering-postgres-1 bash
 psql -U postgres -d similarity_poc
 ```
 
@@ -166,7 +176,7 @@ psql -U postgres -d similarity_poc
 \d+ messages
 
 -- Check row counts
-SELECT 
+SELECT
   'messages' as table, COUNT(*) FROM messages
 UNION ALL
 SELECT 'clusters', COUNT(*) FROM clusters
@@ -174,14 +184,14 @@ UNION ALL
 SELECT 'cluster_messages', COUNT(*) FROM cluster_messages;
 
 -- Check embeddings
-SELECT 
+SELECT
   COUNT(*) as total,
   COUNT(embedding) as with_embedding,
   COUNT(*) - COUNT(embedding) as missing
 FROM messages;
 
 -- Check similarity scores
-SELECT 
+SELECT
   m1.text as text1,
   m2.text as text2,
   ROUND((1 - (m1.embedding <=> m2.embedding))::numeric, 3) as similarity
@@ -202,7 +212,7 @@ docker-compose down -v
 docker-compose up --build
 
 # Or just truncate tables
-docker exec -it similarity-buckets-poc-postgres-1 psql -U postgres -d similarity_poc -c "
+docker exec -it message-similarity-clustering-postgres-1 psql -U postgres -d similarity_poc -c "
 TRUNCATE cluster_messages, clusters, messages RESTART IDENTITY CASCADE;
 "
 ```
@@ -281,6 +291,7 @@ Create `.vscode/launch.json`:
 ```
 
 Add to `package.json`:
+
 ```json
 "start:debug": "nest start --debug --watch"
 ```
@@ -297,6 +308,7 @@ Set breakpoints in `.ts` files and press F5.
 4. Click line number to set breakpoint
 
 **React DevTools:**
+
 ```bash
 # Install browser extension
 # Chrome: https://chrome.google.com/webstore (search "React Developer Tools")
@@ -310,6 +322,7 @@ Set breakpoints in `.ts` files and press F5.
 **Playground:** http://localhost:3000/graphql
 
 **cURL:**
+
 ```bash
 curl http://localhost:3000/graphql \
   -H "Content-Type: application/json" \
@@ -329,16 +342,17 @@ Install browser extension, then inspect cache and queries in DevTools.
 
 ```bash
 # Follow logs
-docker logs similarity-buckets-poc-api-1 -f
+docker logs message-similarity-clustering-api-1 -f
 
 # Last 100 lines
-docker logs similarity-buckets-poc-api-1 --tail 100
+docker logs message-similarity-clustering-api-1 --tail 100
 
 # Since timestamp
-docker logs similarity-buckets-poc-api-1 --since 2026-01-31T10:00:00
+docker logs message-similarity-clustering-api-1 --since 2026-01-31T10:00:00
 ```
 
 **Add custom logging:**
+
 ```typescript
 import { Logger } from '@nestjs/common';
 
@@ -358,9 +372,10 @@ async ingestMessage(input: IngestMessageInput) {
 Open browser console (F12 → Console).
 
 **Add custom logging:**
+
 ```typescript
-console.log('Cluster selected:', clusterId);
-console.debug('Apollo cache:', client.cache.extract());
+console.log("Cluster selected:", clusterId);
+console.debug("Apollo cache:", client.cache.extract());
 ```
 
 ---
@@ -370,34 +385,39 @@ console.debug('Apollo cache:', client.cache.extract());
 ### No clusters appearing after seeding
 
 **Step 1: Check if messages were created**
+
 ```sql
 SELECT COUNT(*) FROM messages;
 ```
 
 **Step 2: Check if embeddings were generated**
+
 ```sql
 SELECT text, embedding IS NOT NULL FROM messages LIMIT 5;
 ```
 
 If `embedding` is NULL, check OpenAI API key:
+
 ```bash
-docker exec similarity-buckets-poc-api-1 printenv | grep OPENAI
+docker exec message-similarity-clustering-api-1 printenv | grep OPENAI
 ```
 
 **Step 3: Check similarity scores**
+
 ```sql
-SELECT 
-  m1.text, 
-  m2.text, 
+SELECT
+  m1.text,
+  m2.text,
   ROUND((1 - (m1.embedding <=> m2.embedding))::numeric, 3) as sim
-FROM messages m1, messages m2 
-WHERE m1.id < m2.id 
+FROM messages m1, messages m2
+WHERE m1.id < m2.id
 LIMIT 5;
 ```
 
 If similarity < 0.4, lower threshold in `messages.service.ts`.
 
 **Step 4: Check cluster creation**
+
 ```sql
 SELECT * FROM clusters;
 SELECT * FROM cluster_messages;
@@ -410,6 +430,7 @@ SELECT * FROM cluster_messages;
 **Symptom:** Unstyled UI, huge images, no Tailwind classes
 
 **Fix:**
+
 ```bash
 # Rebuild frontend container
 docker-compose down
@@ -418,8 +439,9 @@ docker-compose up frontend
 ```
 
 **Check:** `frontend/node_modules` should exist inside container
+
 ```bash
-docker exec similarity-buckets-poc-frontend-1 ls -la /app/node_modules | head
+docker exec message-similarity-clustering-frontend-1 ls -la /app/node_modules | head
 ```
 
 ---
@@ -429,6 +451,7 @@ docker exec similarity-buckets-poc-frontend-1 ls -la /app/node_modules | head
 **Symptom:** `Error: listen EADDRINUSE: address already in use :::3000`
 
 **Fix:**
+
 ```bash
 # Find process
 lsof -ti:3000
@@ -447,14 +470,16 @@ PORT=3001 npm run start:dev
 **Symptom:** `Access to fetch at 'http://localhost:3000/graphql' blocked by CORS`
 
 **Fix:** Ensure backend has CORS enabled in `main.ts`:
+
 ```typescript
 app.enableCors({
-  origin: 'http://localhost:5173',
-  credentials: true
+  origin: "http://localhost:5173",
+  credentials: true,
 });
 ```
 
 **Docker:** Restart API container after changes:
+
 ```bash
 docker-compose restart api
 ```
@@ -466,6 +491,7 @@ docker-compose restart api
 **Symptom:** Red squiggles in VS Code but `npm run start:dev` works
 
 **Fix:**
+
 ```bash
 # Restart TypeScript server
 # CMD+Shift+P → "TypeScript: Restart TS Server"
@@ -481,6 +507,7 @@ npm run build
 **Symptom:** `IngestMessage` takes >5 seconds
 
 **Check OpenAI latency:**
+
 ```typescript
 const start = Date.now();
 const embedding = await this.embeddingsService.generateEmbedding(text);
@@ -488,10 +515,12 @@ console.log(`Embedding took ${Date.now() - start}ms`);
 ```
 
 **Typical latencies:**
+
 - OpenAI API: 1-3 seconds
 - Stub provider: <1ms
 
 **Fix:** Use stub provider for development:
+
 ```bash
 # .env
 EMBEDDING_PROVIDER=stub
@@ -504,6 +533,7 @@ EMBEDDING_PROVIDER=stub
 **Symptom:** Frontend queries fail with "Cannot query field X"
 
 **Fix:** Regenerate GraphQL types:
+
 ```bash
 # Backend: schema is auto-generated on startup (code-first)
 # Just restart API
@@ -520,8 +550,9 @@ npm run codegen  # (if configured)
 ### Backend Performance
 
 **NestJS built-in:**
+
 ```typescript
-import { Logger } from '@nestjs/common';
+import { Logger } from "@nestjs/common";
 
 const start = performance.now();
 // ... code ...
@@ -529,6 +560,7 @@ Logger.log(`Operation took ${performance.now() - start}ms`);
 ```
 
 **Database query timing:**
+
 ```sql
 -- Enable query logging
 ALTER DATABASE similarity_poc SET log_statement = 'all';
@@ -546,6 +578,7 @@ LIMIT 10;
 ### Frontend Performance
 
 **React DevTools Profiler:**
+
 1. Install React DevTools extension
 2. Open DevTools → Profiler tab
 3. Click record
@@ -554,6 +587,7 @@ LIMIT 10;
 6. Analyze render times
 
 **Lighthouse:**
+
 ```bash
 # In Chrome
 # F12 → Lighthouse tab → Generate report
@@ -645,6 +679,7 @@ EMBEDDING_PROVIDER=stub
 ```
 
 **Restart required after changing:**
+
 ```bash
 docker-compose restart api  # Docker
 # or

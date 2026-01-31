@@ -1,6 +1,6 @@
 # API Reference
 
-Complete GraphQL API documentation for similarity clustering.
+Complete GraphQL API documentation for message similarity clustering.
 
 ## Mutations
 

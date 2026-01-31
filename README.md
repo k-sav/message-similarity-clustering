@@ -1,4 +1,4 @@
-# Similarity Buckets POC
+# Message Similarity Clustering
 
 AI-powered similarity clustering for bulk message replies. Detect and group similar inbound messages so creators can respond once to many.
 

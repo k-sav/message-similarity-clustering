@@ -1,6 +1,6 @@
 # Getting Started
 
-Quick guide to running the Similarity Clusters POC locally.
+Quick guide to running Message Similarity Clustering locally.
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ Quick guide to running the Similarity Clusters POC locally.
 
 ```bash
 git clone <repo-url>
-cd similarity-buckets-poc
+cd message-similarity-clustering
 cp .env.example .env
 ```
 

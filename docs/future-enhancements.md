@@ -1,6 +1,6 @@
 # Future Enhancements
 
-Quick wins to increase adoption and value from similarity clustering.
+Quick wins to increase adoption and value from message similarity clustering.
 
 ## 1. Smart Response Suggestions
 
