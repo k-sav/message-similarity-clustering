@@ -66,8 +66,8 @@ Click **"Seed Test Data"** to generate sample clusters.
 
 1. **Message Ingestion** (`IngestMessage` mutation)
    - Generate embedding via OpenAI
-   - Check for trigram match (>85% text similarity)
-   - If no trigram, check vector similarity (>40% semantic similarity)
+   - Check for trigram match (high text similarity)
+   - If no trigram match, check vector similarity (semantic similarity)
    - Add to existing cluster or create new one
 
 2. **Supersede Rule**
