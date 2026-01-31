@@ -1,211 +1,147 @@
-# Similarity Buckets POC (GraphQL + pgvector + React UI)
+# Similarity Buckets POC
 
-Local playground for similarity clustering + bulk reply workflow. No external side effects.
+AI-powered similarity clustering for bulk message replies. Detect and group similar inbound messages so creators can respond once to many.
 
-## Run
+## Quick Start
 
 ```bash
+cp .env.example .env
+# Add your OPENAI_API_KEY to .env
 docker-compose up --build
 ```
 
-**Services:**
+**Access:**
 
-- Frontend UI: `http://localhost:5173`
-- GraphQL API: `http://localhost:3000/graphql`
-- PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
+- 🎨 Frontend UI: http://localhost:5173
+- 🔌 GraphQL API: http://localhost:3000/graphql
+- 🗄️ PostgreSQL: `localhost:5432`
+- 📦 Redis: `localhost:6379`
 
-## Frontend UI
+## Features
 
-The React UI provides:
+✅ **Semantic Similarity Matching** - OpenAI embeddings detect similar questions even with different wording  
+✅ **Bulk Reply** - Respond once to multiple similar messages  
+✅ **Smart Superseding** - Only latest message per channel appears in clusters  
+✅ **Auto-Cleanup** - Empty clusters automatically deleted  
+✅ **Paid DM Protection** - Paid messages never cluster with free messages  
+✅ **Real-time UI** - React frontend with auto-refresh
 
-- **Cluster List**: View all open clusters with 2+ channels
-- **Cluster Detail**: View individual messages in a cluster
-- **Bulk Reply**: Send one response to all messages in a cluster
-- **Remove Messages**: Exclude specific messages from clusters
-- **Seed Data**: Generate test messages for development
+## Tech Stack
 
-### Features
+- **Backend**: NestJS, GraphQL (Code-first), PostgreSQL + pgvector, Redis
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS, Apollo Client
+- **AI**: OpenAI text-embedding-3-small (1536 dimensions)
+- **Deployment**: Docker Compose
 
-- Real-time updates (polls every 3 seconds)
-- Two-panel layout matching the design spec
-- Avatar display from message payloads
-- Relative timestamps ("5m ago")
-- Auto-refresh after mutations
-
-## GraphQL operations
-
-### Ingest a message
+## How It Works
 
 ```
-mutation Ingest($input: IngestMessageInput!) {
-  ingestMessage(input: $input) {
-    messageId
-    clusterId
-    matchedMessageId
-    similarity
-  }
-}
+1. Message arrives → Generate embedding
+                  ↓
+2. Check similarity → Trigram (85%+) or Vector (40%+)
+                  ↓
+3. Match found? → Join existing cluster
+   No match?    → Create new cluster
+                  ↓
+4. UI shows clusters with 2+ messages
+                  ↓
+5. Creator replies → All messages marked as actioned
 ```
-
-Variables (mapped from your Stream payload):
-
-```
-{
-  "input": {
-    "creatorId": "584f0f9d-f952-4251-9fd7-cf8bb1f40931",
-    "messageId": "873d1104-97b7-4254-a2e1-e47a031ac400",
-    "text": "hello",
-    "channelId": "!members-q7fVGv3qWpk2jUUWmXb-fIcc-XvTksxZZzYHxad12r0",
-    "channelCid": "messaging:!members-q7fVGv3qWpk2jUUWmXb-fIcc-XvTksxZZzYHxad12r0",
-    "visitorUserId": "584f0f9d-f952-4251-9fd7-cf8bb1f40931",
-    "visitorUsername": "k_sav1",
-    "createdAt": "2025-10-21T12:55:27.453888Z",
-    "isPaidDm": false,
-    "rawPayload": {
-      "user": { "id": "...", "name": "k_sav1", "image": "https://..." },
-      "type": "regular",
-      "html": "<p>hello</p>"
-    }
-  }
-}
-```
-
-`rawPayload` is optional - stores the full Stream message for future use (avatars, metadata).
-
-### List clusters
-
-```graphql
-query ListClusters {
-  clusters(
-    creatorId: "584f0f9d-f952-4251-9fd7-cf8bb1f40931"
-    status: Open
-    minChannelCount: 2
-  ) {
-    id
-    status
-    channelCount
-    previewText
-    representativeVisitor
-    additionalVisitorCount
-    visitorAvatarUrls
-    createdAt
-    updatedAt
-  }
-}
-```
-
-**Parameters:**
-
-- `status` (optional): Filter by `Open` or `Actioned`
-- `minChannelCount` (optional): Only show clusters with at least N channels (use `2` to hide single-message clusters)
-
-### Cluster detail
-
-```graphql
-query ClusterDetail {
-  cluster(id: "CLUSTER_ID") {
-    id
-    status
-    responseText
-    channelCount
-    messages {
-      id
-      text
-      createdAt
-      channelId
-      visitorUserId
-      visitorUsername
-      visitorAvatarUrl
-    }
-  }
-}
-```
-
-### Action a cluster (bulk reply)
-
-```graphql
-mutation ActionCluster {
-  actionCluster(id: "CLUSTER_ID", responseText: "Thanks for reaching out!") {
-    id
-    status
-    responseText
-    updatedAt
-  }
-}
-```
-
-**Note:** This marks the cluster as `Actioned` and removes all messages from it (deleted from `cluster_messages`).
-
-### Remove a message from a cluster
-
-```graphql
-mutation RemoveMessage {
-  removeClusterMessage(clusterId: "CLUSTER_ID", messageId: "MESSAGE_ID") {
-    id
-    channelCount
-  }
-}
-```
-
-**Note:** Returns `null` if this was the last message in the cluster (cluster is auto-deleted).
-
-## Config
-
-Copy `.env.example` to `.env` for local runs outside Docker.
-
-**Thresholds** (hardcoded in `messages.service.ts`, TODO: move to feature flags):
-
-- `SIMILARITY_THRESHOLD = 0.9` - Vector cosine similarity (semantic matching, precision > recall)
-- `TRIGRAM_THRESHOLD = 0.85` - pg_trgm similarity (near-exact text matching)
-
-**Environment Variables:**
-
-- `EMBEDDING_PROVIDER` = `stub` or `openai`
-  - `stub` - Hash-based embeddings (fast, deterministic, no semantic similarity)
-  - `openai` - Real semantic embeddings via OpenAI API
-- `OPENAI_API_KEY` - Required if using `openai` provider
-- `OPENAI_EMBEDDING_MODEL` - Defaults to `text-embedding-3-small`
-
-**Testing:**
-
-- Tests use `EMBEDDING_PROVIDER=stub` (see `.env.test`)
-- Tests use identical text to trigger trigram matches (stub embeddings don't capture semantic similarity)
 
 ## Key Behaviors
 
 ### One Message Per Channel Rule
 
-**Important:** Each channel can only have ONE message in a cluster at any time. This enforces a 1:1 Creator-Visitor relationship.
-
-When a new message arrives from a channel that already has a message in a cluster:
-
-1. The **old message** from that channel is **removed** from all clusters
-2. The **new message** is added to the matched cluster (or creates a new one)
+Each channel (visitor) can only have **one message** in a cluster at any time.
 
 **Example:**
 
 ```
-1. Visitor sends: "How much do you charge?" (channel-1) → Added to Cluster A
-2. Different visitor sends: "What are your rates?" (channel-2) → Joins Cluster A
-3. First visitor sends: "Still waiting on pricing" (channel-1) → Supersedes message 1 in Cluster A
+Jane sends: "How much do you charge?" → Cluster A
+Bob sends:  "What are your rates?"   → Joins Cluster A
+Jane sends: "Still waiting"           → Replaces Jane's first message in Cluster A
 ```
 
-Result: Cluster A now contains messages from channel-1 (message 3) and channel-2 (message 2).
+Result: Cluster A has 2 messages (Jane's latest + Bob's message)
 
-**Why?** Prevents duplicate responses to the same visitor and ensures `channelCount === messages.length` always holds.
+**Why?** Prevents duplicate responses and enforces 1:1 Creator-Visitor relationship.
 
-**Test Coverage:** See `test/app.e2e-spec.ts` → `"should supersede old message from same channel"`
+### Clustering Thresholds
 
-### Seeding Behavior
+- **Vector similarity**: 40% (semantic matching via OpenAI embeddings)
+- **Trigram similarity**: 85% (near-exact text matching via PostgreSQL)
 
-The **Seed Test Data** button in the UI creates 7 similar messages using **fixed user IDs** (`user-1` through `user-7`).
+**Note:** These are POC values optimized for demo. Production should start at 60% and tune based on feedback.
 
-- **First seed**: Creates 7 new messages, forms a cluster
-- **Subsequent seeds**: Supersedes the previous messages (same channels), updates the cluster with newer timestamps
-- **channelCount**: Will always be 7 (one message per visitor/channel)
+## Documentation
 
-**Before you seed again**: If you've already actioned a cluster, new seeds with the same text will join the actioned cluster (won't appear in "Open" filter). To test repeatedly, either:
+### Getting Started
+- 📘 [Quick Start Guide](./docs/getting-started.md) - Setup, architecture, configuration, testing
+- 📖 [API Reference](./docs/api-reference.md) - Complete GraphQL schema and examples
+- 🗄️ [Database Schema](./docs/database-schema.md) - Tables, indexes, and pgvector details
 
-1. Reset the database: `docker-compose down -v && docker-compose up --build`
-2. Change the seed text to create different clusters
+### Development
+- 💻 [Development Guide](./docs/development.md) - Local workflow, debugging, troubleshooting
+- ⚡ [Performance Guide](./docs/performance.md) - Optimization strategies and benchmarks
+
+### Production
+- 🏭 [Production Migration](./docs/production-migration.md) - Deployment strategy and rollout phases
+- 🚀 [Future Enhancements](./docs/future-enhancements.md) - Roadmap with implementation plans
+
+## Testing
+
+```bash
+npm run test:e2e
+```
+
+11 tests covering:
+
+- Message ingestion and clustering
+- Supersede logic (one message per channel)
+- Cluster queries with UI fields
+- Mutations (action, remove message)
+- Auto-delete empty clusters
+- Paid DM exclusion
+
+Tests use `EMBEDDING_PROVIDER=stub` for speed and determinism.
+
+## Production Readiness
+
+This is a **Proof of Concept**. Before production:
+
+### Required
+
+- [ ] Move thresholds to feature flags (Statsig)
+- [ ] Add async job queue for embedding generation
+- [ ] Implement proper database migrations
+- [ ] Add monitoring and alerting
+- [ ] Set up OpenAI API key rotation
+- [ ] Add rate limiting on ingestion
+- [ ] Backfill embeddings for existing messages
+- [ ] Load testing (1000+ messages/minute)
+
+### Recommended
+
+- [ ] Embedding caching (Redis)
+- [ ] Batch embedding generation (10-50 messages at once)
+- [ ] Circuit breaker for OpenAI failures
+- [ ] Message de-duplication
+- [ ] Creator-specific threshold tuning
+- [ ] Analytics dashboard (cluster formation rate, action rate)
+- [ ] GDPR compliance (embedding deletion)
+
+See [docs/future-enhancements.md](./docs/future-enhancements.md) for detailed implementation plans.
+
+## Cost Estimates
+
+**OpenAI Embeddings:**
+
+- Model: `text-embedding-3-small`
+- Cost: ~$0.0001 per message
+- 1M messages/day = ~$100/day
+
+**Optimization:** Cache embeddings for identical message text (reduce by ~30-50%).
+
+## License
+
+MIT

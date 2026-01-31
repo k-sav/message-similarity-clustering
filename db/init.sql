@@ -48,5 +48,14 @@ CREATE INDEX IF NOT EXISTS idx_messages_replied ON messages (replied_at);
 CREATE INDEX IF NOT EXISTS idx_clusters_creator ON clusters (creator_id);
 CREATE INDEX IF NOT EXISTS idx_clusters_status ON clusters (status);
 CREATE INDEX IF NOT EXISTS idx_cluster_messages_cluster ON cluster_messages (cluster_id);
-CREATE INDEX IF NOT EXISTS idx_messages_embedding ON messages USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- Vector similarity index for embedding search
+-- Using HNSW (Hierarchical Navigable Small World) for best query performance
+-- m=16: connections per layer (higher = better recall, more memory)
+-- ef_construction=64: build-time accuracy (higher = better index, slower build)
+CREATE INDEX IF NOT EXISTS idx_messages_embedding ON messages 
+  USING hnsw (embedding vector_cosine_ops) 
+  WITH (m = 16, ef_construction = 64);
+
+-- Trigram index for text similarity (pre-filtering before vector search)
 CREATE INDEX IF NOT EXISTS idx_messages_text_trgm ON messages USING gist (text gist_trgm_ops);
