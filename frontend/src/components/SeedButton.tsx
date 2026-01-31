@@ -81,27 +81,30 @@ export default function SeedButton() {
   const handleSeed = async () => {
     setIsSeeding(true);
     console.log("Starting seed...");
-    const seedId = Date.now(); // Unique per seed run
+    const iteration = Date.now(); // Always unique
     try {
       for (let i = 0; i < SEED_MESSAGES.length; i++) {
         const msg = SEED_MESSAGES[i];
+        // Each user gets a unique ID per seed run (simulating different visitors asking same questions)
+        const uniqueUserId = `${msg.userId}-${iteration}`;
+        const uniqueUsername = `${msg.username} ${iteration % 1000}`; // Add unique suffix to username
         const result = await ingestMessage({
           variables: {
             input: {
               creatorId: CREATOR_ID,
-              messageId: `seed-msg-${seedId}-${i}`,
+              messageId: `seed-msg-${iteration}-${i}`,
               text: msg.text,
-              channelId: `channel-${msg.userId}-${seedId}`, // Unique per seed run
-              channelCid: `messaging:channel-${msg.userId}-${seedId}`,
-              visitorUserId: msg.userId,
-              visitorUsername: msg.username,
+              channelId: `channel-${uniqueUserId}`, // Static per user (1:1 relationship)
+              channelCid: `messaging:channel-${uniqueUserId}`,
+              visitorUserId: uniqueUserId,
+              visitorUsername: uniqueUsername,
               createdAt: new Date().toISOString(),
               isPaidDm: false,
               rawPayload: {
                 user: {
-                  id: msg.userId,
+                  id: uniqueUserId,
                   name: msg.username,
-                  image: `https://i.pravatar.cc/150?u=${msg.userId}`,
+                  image: `https://i.pravatar.cc/150?u=${uniqueUserId}`,
                 },
               },
             },
