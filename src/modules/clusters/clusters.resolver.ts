@@ -11,9 +11,10 @@ export class ClustersResolver {
   @Query(() => [Cluster], { name: 'clusters' })
   clustersList(
     @Args('creatorId', { type: () => ID }) creatorId: string,
-    @Args('status', { type: () => ClusterStatus, nullable: true }) status?: ClusterStatus
+    @Args('status', { type: () => ClusterStatus, nullable: true }) status?: ClusterStatus,
+    @Args('minChannelCount', { type: () => Number, nullable: true }) minChannelCount?: number,
   ): Promise<Cluster[]> {
-    return this.clusters.listClusters(creatorId, status)
+    return this.clusters.listClusters(creatorId, status, minChannelCount)
   }
 
   @Query(() => Cluster)
@@ -29,11 +30,11 @@ export class ClustersResolver {
     return this.clusters.actionCluster(id, responseText)
   }
 
-  @Mutation(() => Cluster)
+  @Mutation(() => Cluster, { nullable: true })
   removeClusterMessage(
     @Args('clusterId', { type: () => ID }) clusterId: string,
     @Args('messageId', { type: () => ID }) messageId: string
-  ): Promise<Cluster> {
+  ): Promise<Cluster | null> {
     return this.clusters.removeClusterMessage(clusterId, messageId)
   }
 

@@ -52,33 +52,47 @@ Variables (mapped from your Stream payload):
 
 ### List clusters
 
-```
+```graphql
 query ListClusters {
-  clusters(creatorId: "584f0f9d-f952-4251-9fd7-cf8bb1f40931", status: Open) {
+  clusters(
+    creatorId: "584f0f9d-f952-4251-9fd7-cf8bb1f40931"
+    status: Open
+    minChannelCount: 2
+  ) {
     id
     status
-    messageCount
+    channelCount
+    previewText
+    representativeVisitor
+    additionalVisitorCount
+    visitorAvatarUrls
     createdAt
     updatedAt
   }
 }
 ```
 
+**Parameters:**
+- `status` (optional): Filter by `Open` or `Actioned`
+- `minChannelCount` (optional): Only show clusters with at least N channels (use `2` to hide single-message clusters)
+
 ### Cluster detail
 
-```
+```graphql
 query ClusterDetail {
   cluster(id: "CLUSTER_ID") {
     id
     status
     responseText
-    messageCount
+    channelCount
     messages {
       id
       text
       createdAt
       channelId
       visitorUserId
+      visitorUsername
+      visitorAvatarUrl
     }
   }
 }
@@ -86,7 +100,7 @@ query ClusterDetail {
 
 ### Action a cluster (bulk reply)
 
-```
+```graphql
 mutation ActionCluster {
   actionCluster(id: "CLUSTER_ID", responseText: "Thanks for reaching out!") {
     id
@@ -97,16 +111,20 @@ mutation ActionCluster {
 }
 ```
 
+**Note:** This marks the cluster as `Actioned` and removes all messages from it (deleted from `cluster_messages`).
+
 ### Remove a message from a cluster
 
-```
+```graphql
 mutation RemoveMessage {
   removeClusterMessage(clusterId: "CLUSTER_ID", messageId: "MESSAGE_ID") {
     id
-    messageCount
+    channelCount
   }
 }
 ```
+
+**Note:** Returns `null` if this was the last message in the cluster (cluster is auto-deleted).
 
 ## Config
 

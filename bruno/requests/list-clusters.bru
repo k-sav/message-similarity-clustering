@@ -15,10 +15,11 @@ headers {
 
 body:json {
   {
-    "query": "query ListClusters($creatorId: ID!, $status: ClusterStatus) { clusters(creatorId: $creatorId, status: $status) { id status channelCount previewText representativeVisitor additionalVisitorCount visitorAvatarUrls createdAt updatedAt } }",
+    "query": "query ListClusters($creatorId: ID!, $status: ClusterStatus, $minChannelCount: Float) { clusters(creatorId: $creatorId, status: $status, minChannelCount: $minChannelCount) { id status channelCount previewText representativeVisitor additionalVisitorCount visitorAvatarUrls createdAt updatedAt } }",
     "variables": {
       "creatorId": "584f0f9d-f952-4251-9fd7-cf8bb1f40931",
-      "status": "Open"
+      "status": "Open",
+      "minChannelCount": 2
     }
   }
 }

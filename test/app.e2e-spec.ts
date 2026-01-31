@@ -283,6 +283,34 @@ describe('Similarity Buckets E2E', () => {
       expect(cluster.visitorAvatarUrls).toContain('https://example.com/bob.jpg');
     });
 
+    it('should filter clusters by minChannelCount', async () => {
+      // This cluster has 2 channels
+      const with2 = await gql(
+        `query ListClusters($creatorId: ID!, $minChannelCount: Float) {
+          clusters(creatorId: $creatorId, minChannelCount: $minChannelCount) {
+            id
+            channelCount
+          }
+        }`,
+        { creatorId: CREATOR_ID, minChannelCount: 2 },
+      );
+
+      expect(with2.body.data.clusters.length).toBe(1);
+      expect(with2.body.data.clusters[0].channelCount).toBe(2);
+
+      // Filter for 3+ channels - should be empty
+      const with3 = await gql(
+        `query ListClusters($creatorId: ID!, $minChannelCount: Float) {
+          clusters(creatorId: $creatorId, minChannelCount: $minChannelCount) {
+            id
+          }
+        }`,
+        { creatorId: CREATOR_ID, minChannelCount: 3 },
+      );
+
+      expect(with3.body.data.clusters.length).toBe(0);
+    });
+
     it('should get cluster detail with messages', async () => {
       const res = await gql(
         `query ClusterDetail($clusterId: ID!) {
@@ -370,6 +398,41 @@ describe('Similarity Buckets E2E', () => {
 
       expect(res.body.errors).toBeUndefined();
       expect(res.body.data.removeClusterMessage.channelCount).toBe(1);
+    });
+
+    it('should auto-delete cluster when last message removed', async () => {
+      // Remove first message
+      await gql(
+        `mutation RemoveMessage($clusterId: ID!, $messageId: ID!) {
+          removeClusterMessage(clusterId: $clusterId, messageId: $messageId) {
+            id
+          }
+        }`,
+        { clusterId, messageId: messageId1 },
+      );
+
+      // Remove second (last) message - cluster should be deleted
+      const res = await gql(
+        `mutation RemoveMessage($clusterId: ID!, $messageId: ID!) {
+          removeClusterMessage(clusterId: $clusterId, messageId: $messageId) {
+            id
+          }
+        }`,
+        { clusterId, messageId: messageId2 },
+      );
+
+      expect(res.body.errors).toBeUndefined();
+      expect(res.body.data.removeClusterMessage).toBeNull();
+
+      // Verify cluster no longer exists
+      const list = await gql(
+        `query ListClusters($creatorId: ID!) {
+          clusters(creatorId: $creatorId) { id }
+        }`,
+        { creatorId: CREATOR_ID },
+      );
+
+      expect(list.body.data.clusters.length).toBe(0);
     });
 
     it('should action cluster and set status', async () => {

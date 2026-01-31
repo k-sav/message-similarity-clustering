@@ -40,12 +40,20 @@ export class ClustersService {
   async listClusters(
     creatorId: string,
     status?: ClusterStatus,
+    minChannelCount?: number,
   ): Promise<Cluster[]> {
-    const params: Array<string | ClusterStatus> = [creatorId];
+    const params: Array<string | ClusterStatus | number> = [creatorId];
     let statusFilter = "";
+    let channelCountFilter = "";
+
     if (status) {
       params.push(status);
       statusFilter = `AND c.status = $${params.length}`;
+    }
+
+    if (minChannelCount !== undefined && minChannelCount > 0) {
+      params.push(minChannelCount);
+      channelCountFilter = `HAVING COUNT(DISTINCT m.channel_id) >= $${params.length}`;
     }
 
     const result = await this.db.query<ClusterRow>(
@@ -90,6 +98,7 @@ export class ClustersService {
         WHERE c.creator_id = $1
         ${statusFilter}
         GROUP BY c.id
+        ${channelCountFilter}
         ORDER BY c.updated_at DESC
       `,
       params,
@@ -224,7 +233,9 @@ export class ClustersService {
   async removeClusterMessage(
     clusterId: string,
     messageId: string,
-  ): Promise<Cluster> {
+  ): Promise<Cluster | null> {
+    let clusterDeleted = false;
+
     await this.db.withClient(async (client) => {
       await client.query("BEGIN");
       try {
@@ -241,14 +252,34 @@ export class ClustersService {
           throw new Error("Message not found in cluster");
         }
 
-        await client.query(
+        // Check if cluster is now empty and delete it
+        const emptyCheck = await client.query(
           `
-            UPDATE clusters
-            SET updated_at = now()
-            WHERE id = $1
+            SELECT EXISTS (
+              SELECT 1 FROM cluster_messages WHERE cluster_id = $1
+            ) AS has_messages
           `,
           [clusterId],
         );
+
+        if (!emptyCheck.rows[0].has_messages) {
+          // Cluster is empty - delete it
+          await client.query(
+            `DELETE FROM clusters WHERE id = $1`,
+            [clusterId],
+          );
+          clusterDeleted = true;
+        } else {
+          // Cluster still has messages - update timestamp
+          await client.query(
+            `
+              UPDATE clusters
+              SET updated_at = now()
+              WHERE id = $1
+            `,
+            [clusterId],
+          );
+        }
 
         await client.query("COMMIT");
       } catch (error) {
@@ -256,6 +287,10 @@ export class ClustersService {
         throw error;
       }
     });
+
+    if (clusterDeleted) {
+      return null;
+    }
 
     return this.getCluster(clusterId);
   }
