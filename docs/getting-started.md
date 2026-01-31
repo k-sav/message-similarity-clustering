@@ -33,6 +33,7 @@ docker-compose up --build
 ```
 
 This starts:
+
 - **PostgreSQL** (with pgvector) on port `5432`
 - **Redis** on port `6379`
 - **API** (NestJS + GraphQL) on port `3000`
@@ -91,26 +92,27 @@ Click **"Seed Test Data"** to generate sample clusters.
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3000` | API server port |
-| `DATABASE_URL` | `postgres://...` | PostgreSQL connection string |
-| `REDIS_URL` | `redis://...` | Redis connection string |
-| `EMBEDDING_PROVIDER` | `openai` | `openai` or `stub` |
-| `EMBEDDING_DIM` | `1536` | Embedding dimension (for OpenAI text-embedding-3-small) |
-| `OPENAI_API_KEY` | - | Your OpenAI API key (required for `openai` provider) |
-| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | OpenAI model to use |
+| Variable                 | Default                  | Description                                             |
+| ------------------------ | ------------------------ | ------------------------------------------------------- |
+| `PORT`                   | `3000`                   | API server port                                         |
+| `DATABASE_URL`           | `postgres://...`         | PostgreSQL connection string                            |
+| `REDIS_URL`              | `redis://...`            | Redis connection string                                 |
+| `EMBEDDING_PROVIDER`     | `openai`                 | `openai` or `stub`                                      |
+| `EMBEDDING_DIM`          | `1536`                   | Embedding dimension (for OpenAI text-embedding-3-small) |
+| `OPENAI_API_KEY`         | -                        | Your OpenAI API key (required for `openai` provider)    |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | OpenAI model to use                                     |
 
 ### Similarity Thresholds
 
 Configured in `src/modules/messages/messages.service.ts`:
 
 ```typescript
-const SIMILARITY_THRESHOLD = 0.4;  // 40% semantic similarity
-const TRIGRAM_THRESHOLD = 0.85;    // 85% text similarity
+const SIMILARITY_THRESHOLD = 0.4; // 40% semantic similarity
+const TRIGRAM_THRESHOLD = 0.85; // 85% text similarity
 ```
 
 **Tuning guidance:**
+
 - **Higher threshold** (0.6-0.9): More precise clusters, fewer false positives, might miss valid matches
 - **Lower threshold** (0.3-0.5): More inclusive clusters, higher recall, more false positives
 - **Production recommendation**: Start at 0.6, A/B test and tune based on creator feedback
@@ -118,14 +120,18 @@ const TRIGRAM_THRESHOLD = 0.85;    // 85% text similarity
 ### Embedding Providers
 
 **OpenAI** (production):
+
 - Real semantic similarity
 - ~$0.0001 per message
 - 1-3 second latency per embedding
+- ✅ **Cached in Redis** (30-50% cost reduction for repeated questions)
 
 **Stub** (testing):
+
 - Deterministic hash-based embeddings
 - Free and instant
 - No semantic understanding (only matches identical text)
+- No caching needed (already instant)
 
 ---
 

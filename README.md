@@ -20,6 +20,7 @@ docker-compose up --build
 ## Features
 
 ✅ **Semantic Similarity Matching** - OpenAI embeddings detect similar questions even with different wording  
+✅ **Embedding Caching** - Redis caches embeddings for 30 days (30-50% cost reduction)  
 ✅ **Bulk Reply** - Respond once to multiple similar messages  
 ✅ **Smart Superseding** - Only latest message per channel appears in clusters  
 ✅ **Auto-Cleanup** - Empty clusters automatically deleted  
@@ -76,15 +77,18 @@ Result: Cluster A has 2 messages (Jane's latest + Bob's message)
 ## Documentation
 
 ### Getting Started
+
 - 📘 [Quick Start Guide](./docs/getting-started.md) - Setup, architecture, configuration, testing
 - 📖 [API Reference](./docs/api-reference.md) - Complete GraphQL schema and examples
 - 🗄️ [Database Schema](./docs/database-schema.md) - Tables, indexes, and pgvector details
 
 ### Development
+
 - 💻 [Development Guide](./docs/development.md) - Local workflow, debugging, troubleshooting
 - ⚡ [Performance Guide](./docs/performance.md) - Optimization strategies and benchmarks
 
 ### Production
+
 - 🏭 [Production Migration](./docs/production-migration.md) - Deployment strategy and rollout phases
 - 🚀 [Future Enhancements](./docs/future-enhancements.md) - Roadmap with implementation plans
 

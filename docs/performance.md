@@ -6,16 +6,16 @@ Optimization strategies for scaling similarity clustering.
 
 Benchmarks from local development environment:
 
-| Operation | Latency (p95) | Throughput | Notes |
-|-----------|---------------|------------|-------|
-| Generate embedding | 1.2s | 1 msg/s | OpenAI API call (blocking) |
-| Trigram similarity check | 5ms | N/A | PostgreSQL GIST index |
-| Vector similarity search | 25ms | N/A | HNSW index, 10K messages |
-| Vector similarity search | 100ms | N/A | HNSW index, 1M messages |
-| List clusters query | 15ms | N/A | With proper indexes |
-| Get cluster detail | 20ms | N/A | Single cluster with messages |
-| Action cluster mutation | 30ms | N/A | Single transaction |
-| Remove message mutation | 25ms | N/A | Single transaction |
+| Operation                | Latency (p95) | Throughput | Notes                        |
+| ------------------------ | ------------- | ---------- | ---------------------------- |
+| Generate embedding       | 1.2s          | 1 msg/s    | OpenAI API call (blocking)   |
+| Trigram similarity check | 5ms           | N/A        | PostgreSQL GIST index        |
+| Vector similarity search | 25ms          | N/A        | HNSW index, 10K messages     |
+| Vector similarity search | 100ms         | N/A        | HNSW index, 1M messages      |
+| List clusters query      | 15ms          | N/A        | With proper indexes          |
+| Get cluster detail       | 20ms          | N/A        | Single cluster with messages |
+| Action cluster mutation  | 30ms          | N/A        | Single transaction           |
+| Remove message mutation  | 25ms          | N/A        | Single transaction           |
 
 **Bottleneck:** OpenAI API calls (1-3 seconds per embedding).
 
@@ -34,10 +34,10 @@ Benchmarks from local development environment:
 async ingestMessage(input: IngestMessageInput): Promise<IngestResult> {
   // Store message immediately
   const messageId = await this.storeMessage(input);
-  
+
   // Queue for embedding generation (non-blocking)
   await this.embeddingQueue.add('generate', { messageId, text: input.text });
-  
+
   return { messageId, clusterId: null, status: 'pending' };
 }
 
@@ -47,13 +47,13 @@ export class EmbeddingProcessor {
   @Process('generate')
   async handleGenerate(job: Job) {
     const { messageId, text } = job.data;
-    
+
     // Generate embedding
     const embedding = await this.openai.embeddings.create({ ... });
-    
+
     // Update message
     await this.db.query(`UPDATE messages SET embedding = $1 WHERE id = $2`, [embedding, messageId]);
-    
+
     // Cluster asynchronously
     await this.clusteringService.findOrCreateCluster(messageId);
   }
@@ -61,6 +61,7 @@ export class EmbeddingProcessor {
 ```
 
 **Benefits:**
+
 - API responds in <50ms
 - Background workers scale horizontally
 - Failed embeddings can retry
@@ -81,7 +82,7 @@ async generateEmbeddings(texts: string[]): Promise<number[][]> {
     input: texts,  // Up to 2048 texts
     model: 'text-embedding-3-small'
   });
-  
+
   return response.data.map(d => d.embedding);
 }
 
@@ -90,13 +91,14 @@ const pendingMessages = await this.getPendingMessages(50);
 const embeddings = await this.generateEmbeddings(pendingMessages.map(m => m.text));
 
 await Promise.all(
-  pendingMessages.map((msg, i) => 
+  pendingMessages.map((msg, i) =>
     this.db.query(`UPDATE messages SET embedding = $1 WHERE id = $2`, [embeddings[i], msg.id])
   )
 );
 ```
 
 **Benefits:**
+
 - 10-50x throughput improvement
 - Same cost per message
 - Lower API rate limit pressure
@@ -105,30 +107,31 @@ await Promise.all(
 
 ### 3. Embedding Caching
 
-**Problem:** Identical messages generate duplicate embeddings.
+**Status:** ✅ **Implemented in POC**
 
-**Solution:** Cache embeddings by text hash.
+Identical messages generate duplicate embeddings without caching.
+
+**Current implementation:**
 
 ```typescript
-async generateEmbedding(text: string): Promise<number[]> {
-  // Normalize and hash
-  const normalized = text.toLowerCase().trim();
-  const hash = crypto.createHash('sha256').update(normalized).digest('hex');
-  const cacheKey = `emb:${hash}`;
-  
-  // Check cache
-  const cached = await this.redis.get(cacheKey);
-  if (cached) {
-    return JSON.parse(cached);
+async embed(text: string): Promise<number[]> {
+  if (provider === 'openai') {
+    // Check cache
+    const cacheKey = this.getCacheKey(text)  // sha256 hash of normalized text
+    const cached = await this.cache.get(cacheKey)
+
+    if (cached) {
+      return JSON.parse(cached)  // Cache hit!
+    }
+
+    // Generate embedding
+    const embedding = await this.embedWithOpenAI(text, dimension)
+
+    // Cache for 30 days
+    await this.cache.set(cacheKey, JSON.stringify(embedding), 30 * 24 * 60 * 60)
+
+    return embedding
   }
-  
-  // Generate
-  const embedding = await this.openai.embeddings.create({ input: text });
-  
-  // Cache for 30 days
-  await this.redis.setex(cacheKey, 30 * 24 * 60 * 60, JSON.stringify(embedding));
-  
-  return embedding;
 }
 ```
 
@@ -143,14 +146,21 @@ async generateEmbedding(text: string): Promise<number[]> {
 #### List Clusters Query
 
 **Before (N+1 problem):**
+
 ```typescript
-const clusters = await this.db.query(`SELECT * FROM clusters WHERE creator_id = $1`);
+const clusters = await this.db.query(
+  `SELECT * FROM clusters WHERE creator_id = $1`,
+);
 for (const cluster of clusters) {
-  cluster.messages = await this.db.query(`SELECT * FROM messages WHERE cluster_id = $1`, [cluster.id]);
+  cluster.messages = await this.db.query(
+    `SELECT * FROM messages WHERE cluster_id = $1`,
+    [cluster.id],
+  );
 }
 ```
 
 **After (single query with JOINs):**
+
 ```typescript
 const clusters = await this.db.query(`
   SELECT 
@@ -186,6 +196,7 @@ ORDER BY sim DESC;
 ```
 
 **Always check with EXPLAIN ANALYZE:**
+
 ```sql
 EXPLAIN ANALYZE
 SELECT * FROM messages
@@ -205,23 +216,25 @@ Look for: `Index Scan using idx_messages_embedding`
 
 ```typescript
 // db.module.ts
-import { Pool } from 'pg';
+import { Pool } from "pg";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   min: 5,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000
+  connectionTimeoutMillis: 2000,
 });
 ```
 
 **Tuning:**
+
 - **min**: Keep warm connections (reduces latency)
 - **max**: Prevent connection exhaustion (tune based on DB limits)
 - **idleTimeoutMillis**: Close unused connections (reduces DB load)
 
 **PostgreSQL side:**
+
 ```sql
 -- Check connection count
 SELECT count(*) FROM pg_stat_activity;
@@ -241,34 +254,35 @@ SHOW max_connections;  -- Default: 100
 ```typescript
 async listClusters(creatorId: string): Promise<Cluster[]> {
   const cacheKey = `clusters:${creatorId}`;
-  
+
   // Check cache
   const cached = await this.redis.get(cacheKey);
   if (cached) {
     return JSON.parse(cached);
   }
-  
+
   // Query DB
   const clusters = await this.db.query(`SELECT ...`);
-  
+
   // Cache for 10 seconds
   await this.redis.setex(cacheKey, 10, JSON.stringify(clusters));
-  
+
   return clusters;
 }
 
 // Invalidate on mutation
 async actionCluster(id: string, responseText: string) {
   const cluster = await this.db.query(`UPDATE clusters ...`);
-  
+
   // Invalidate cache
   await this.redis.del(`clusters:${cluster.creator_id}`);
-  
+
   return cluster;
 }
 ```
 
 **Benefits:**
+
 - Reduces DB load by 80%+
 - Faster response times (1ms vs 15ms)
 - Stale data limited to 10 seconds (acceptable)
@@ -278,38 +292,42 @@ async actionCluster(id: string, responseText: string) {
 ### 7. HNSW Index Tuning
 
 **For 10K-100K messages:**
+
 ```sql
-CREATE INDEX idx_messages_embedding 
-ON messages USING hnsw (embedding vector_cosine_ops) 
+CREATE INDEX idx_messages_embedding
+ON messages USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
 ```
 
 **For 100K-1M messages:**
+
 ```sql
-CREATE INDEX idx_messages_embedding 
-ON messages USING hnsw (embedding vector_cosine_ops) 
+CREATE INDEX idx_messages_embedding
+ON messages USING hnsw (embedding vector_cosine_ops)
 WITH (m = 24, ef_construction = 128);
 ```
 
 **For 1M+ messages:**
+
 ```sql
-CREATE INDEX idx_messages_embedding 
-ON messages USING hnsw (embedding vector_cosine_ops) 
+CREATE INDEX idx_messages_embedding
+ON messages USING hnsw (embedding vector_cosine_ops)
 WITH (m = 32, ef_construction = 200);
 ```
 
 **Query-time tuning:**
+
 ```sql
 SET hnsw.ef_search = 100;  -- Higher = better recall, slower (default: 40)
 ```
 
 **Trade-offs:**
 
-| Parameter | Higher Value | Lower Value |
-|-----------|--------------|-------------|
-| `m` | Better recall, more memory | Less memory, lower recall |
+| Parameter         | Higher Value                       | Lower Value                 |
+| ----------------- | ---------------------------------- | --------------------------- |
+| `m`               | Better recall, more memory         | Less memory, lower recall   |
 | `ef_construction` | Better index quality, slower build | Faster build, lower quality |
-| `ef_search` | Better recall, slower query | Faster query, lower recall |
+| `ef_search`       | Better recall, slower query        | Faster query, lower recall  |
 
 ---
 
@@ -318,11 +336,13 @@ SET hnsw.ef_search = 100;  -- Higher = better recall, slower (default: 40)
 #### API Servers
 
 **Load balancer:**
+
 ```
 nginx → api-1, api-2, api-3
 ```
 
 **State considerations:**
+
 - ✅ GraphQL API is stateless (scales perfectly)
 - ⚠️ Embedding queue requires shared Redis
 - ⚠️ Database connections limited (use pooler like PgBouncer)
@@ -352,6 +372,7 @@ Read: api → read replica 1, read replica 2
 ```
 
 **Implementation:**
+
 ```typescript
 // db.module.ts
 const primaryPool = new Pool({ connectionString: PRIMARY_URL });
@@ -386,6 +407,7 @@ await this.db.query(`UPDATE messages SET visitor_avatar_url = $1`, [cdnUrl]);
 ```
 
 **Benefits:**
+
 - 200ms → 10ms load time
 - Reduces third-party dependency
 - Better privacy (no external requests)
@@ -397,21 +419,25 @@ await this.db.query(`UPDATE messages SET visitor_avatar_url = $1`, [cdnUrl]);
 ### Key Metrics
 
 **API:**
+
 - Request latency (p50, p95, p99)
 - Error rate (should be <1%)
 - Requests per second
 
 **Database:**
+
 - Connection pool utilization (should be <80%)
 - Query latency (should be <100ms p95)
 - Slow queries (>1s)
 
 **OpenAI:**
+
 - Embedding generation latency
 - API error rate
 - Daily cost
 
 **Queue:**
+
 - Job processing time
 - Queue depth (should be <1000)
 - Failed job rate
@@ -427,9 +453,9 @@ const logger = new Logger('Performance');
 
 async someOperation() {
   const start = performance.now();
-  
+
   // ... operation ...
-  
+
   const duration = performance.now() - start;
   if (duration > 100) {  // Log if >100ms
     logger.warn(`Slow operation: ${duration}ms`);
@@ -446,7 +472,7 @@ async someOperation() {
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
 -- Find slow queries
-SELECT 
+SELECT
   substring(query, 1, 50) as query,
   calls,
   ROUND(mean_exec_time::numeric, 2) as avg_ms,
@@ -485,6 +511,7 @@ scenarios:
 ```
 
 Run:
+
 ```bash
 artillery run artillery.yml
 ```
@@ -493,12 +520,12 @@ artillery run artillery.yml
 
 ### Expected Throughput
 
-| Configuration | Ingest (msg/s) | List Clusters (req/s) |
-|---------------|----------------|----------------------|
-| 1 API server, sync embedding | 1 | 100 |
-| 1 API server, async embedding | 200 | 100 |
-| 3 API servers, async, caching | 1000 | 1000 |
-| 10 API servers, read replicas | 5000 | 10000 |
+| Configuration                 | Ingest (msg/s) | List Clusters (req/s) |
+| ----------------------------- | -------------- | --------------------- |
+| 1 API server, sync embedding  | 1              | 100                   |
+| 1 API server, async embedding | 200            | 100                   |
+| 3 API servers, async, caching | 1000           | 1000                  |
+| 10 API servers, read replicas | 5000           | 10000                 |
 
 ---
 
@@ -509,11 +536,13 @@ artillery run artillery.yml
 **Current cost:** $0.0001 per message
 
 **Optimizations:**
+
 1. **Caching:** 30-50% reduction → **$0.00005-0.00007/message**
 2. **Deduplication:** Skip messages with identical text → **5-10% additional reduction**
 3. **Batch processing:** Same cost, but better throughput
 
 **1M messages/day:**
+
 - Without optimization: **$100/day**
 - With caching: **$50-70/day**
 - With caching + dedup: **$45-65/day**
@@ -525,11 +554,13 @@ artillery run artillery.yml
 **Current:** ~6KB per message (1536 floats)
 
 **1M messages:**
+
 - Storage: ~6GB
 - Index overhead: ~2GB
 - Total: ~8GB
 
 **PostgreSQL pricing (AWS RDS):**
+
 - db.t4g.medium (2 vCPU, 4GB RAM): ~$60/month
 - 10GB storage: ~$1.15/month
 - **Total: ~$61/month for 1M messages**
@@ -541,10 +572,12 @@ artillery run artillery.yml
 ### Compute Costs
 
 **API servers (AWS ECS Fargate):**
+
 - 0.5 vCPU, 1GB RAM: ~$15/month per instance
 - 3 instances: **~$45/month**
 
 **Workers:**
+
 - 0.5 vCPU, 1GB RAM: ~$15/month per instance
 - 2 instances: **~$30/month**
 
@@ -556,11 +589,11 @@ artillery run artillery.yml
 
 ### Quick Wins (Immediate)
 
-1. ✅ **HNSW index** - Already implemented
-2. **Connection pooling** - 5 min setup
-3. **Redis caching for list queries** - 1 hour
+1. ✅ **HNSW index** - Implemented
+2. ✅ **Embedding caching** - Implemented (Redis)
+3. **Connection pooling** - 5 min setup
 
-**Expected improvement:** 3-5x query performance
+**Expected improvement:** 3-5x query performance, 30-50% cost reduction
 
 ---
 
@@ -568,7 +601,7 @@ artillery run artillery.yml
 
 4. **Async embedding generation** - Queue infrastructure
 5. **Batch embedding** - Refactor embedding service
-6. **Embedding caching** - Redis integration
+6. **Redis caching for query results** - Cache cluster lists
 
 **Expected improvement:** 10-50x ingestion throughput
 
