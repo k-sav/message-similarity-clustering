@@ -1,14 +1,37 @@
-# Similarity Buckets POC (GraphQL + pgvector)
+# Similarity Buckets POC (GraphQL + pgvector + React UI)
 
 Local playground for similarity clustering + bulk reply workflow. No external side effects.
 
 ## Run
 
-```
+```bash
 docker-compose up --build
 ```
 
-GraphQL endpoint: `http://localhost:3000/graphql`
+**Services:**
+
+- Frontend UI: `http://localhost:5173`
+- GraphQL API: `http://localhost:3000/graphql`
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+
+## Frontend UI
+
+The React UI provides:
+
+- **Cluster List**: View all open clusters with 2+ channels
+- **Cluster Detail**: View individual messages in a cluster
+- **Bulk Reply**: Send one response to all messages in a cluster
+- **Remove Messages**: Exclude specific messages from clusters
+- **Seed Data**: Generate test messages for development
+
+### Features
+
+- Real-time updates (polls every 3 seconds)
+- Two-panel layout matching the design spec
+- Avatar display from message payloads
+- Relative timestamps ("5m ago")
+- Auto-refresh after mutations
 
 ## GraphQL operations
 
@@ -148,3 +171,41 @@ Copy `.env.example` to `.env` for local runs outside Docker.
 
 - Tests use `EMBEDDING_PROVIDER=stub` (see `.env.test`)
 - Tests use identical text to trigger trigram matches (stub embeddings don't capture semantic similarity)
+
+## Key Behaviors
+
+### One Message Per Channel Rule
+
+**Important:** Each channel can only have ONE message in a cluster at any time. This enforces a 1:1 Creator-Visitor relationship.
+
+When a new message arrives from a channel that already has a message in a cluster:
+
+1. The **old message** from that channel is **removed** from all clusters
+2. The **new message** is added to the matched cluster (or creates a new one)
+
+**Example:**
+
+```
+1. Visitor sends: "How much do you charge?" (channel-1) → Added to Cluster A
+2. Different visitor sends: "What are your rates?" (channel-2) → Joins Cluster A
+3. First visitor sends: "Still waiting on pricing" (channel-1) → Supersedes message 1 in Cluster A
+```
+
+Result: Cluster A now contains messages from channel-1 (message 3) and channel-2 (message 2).
+
+**Why?** Prevents duplicate responses to the same visitor and ensures `channelCount === messages.length` always holds.
+
+**Test Coverage:** See `test/app.e2e-spec.ts` → `"should supersede old message from same channel"`
+
+### Seeding Behavior
+
+The **Seed Test Data** button in the UI creates 7 similar messages using **fixed user IDs** (`user-1` through `user-7`).
+
+- **First seed**: Creates 7 new messages, forms a cluster
+- **Subsequent seeds**: Supersedes the previous messages (same channels), updates the cluster with newer timestamps
+- **channelCount**: Will always be 7 (one message per visitor/channel)
+
+**Before you seed again**: If you've already actioned a cluster, new seeds with the same text will join the actioned cluster (won't appear in "Open" filter). To test repeatedly, either:
+
+1. Reset the database: `docker-compose down -v && docker-compose up --build`
+2. Change the seed text to create different clusters

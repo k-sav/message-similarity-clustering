@@ -12,6 +12,8 @@ services:
       EMBEDDING_PROVIDER: openai
       EMBEDDING_DIM: 1536
       SIMILARITY_THRESHOLD: 0.9
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_EMBEDDING_MODEL: text-embedding-3-small
     volumes:
       - .:/app
       - /app/node_modules
@@ -42,6 +44,20 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_GRAPHQL_URL=http://localhost:3000/graphql
+    depends_on:
+      - api
 
 volumes:
   postgres_data:
