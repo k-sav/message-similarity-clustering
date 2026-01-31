@@ -3,6 +3,7 @@
 ## Current State (Implemented)
 
 ### Core Features
+
 - ✅ Messages ingested with embeddings, clustered by similarity
 - ✅ `cluster_messages` join table (simple many-to-many, no status tracking)
 - ✅ `raw_payload jsonb` stores full Stream message (avatars, metadata)
@@ -11,6 +12,7 @@
 - ✅ `minChannelCount` filter: Only show clusters with N+ channels
 
 ### Optimizations
+
 - ✅ **pg_trgm optimization**: Near-exact duplicates skip embedding API call
   - `TRIGRAM_THRESHOLD = 0.85` - hardcoded constant
   - `SIMILARITY_THRESHOLD = 0.9` - hardcoded constant
@@ -19,6 +21,7 @@
   - TODO: Move thresholds to feature flag system for production
 
 ### Production Integration Notes
+
 - **No-response filter**: Removed from POC
   - In production, integrate with `StreamChatTaggingProcessor` in ltfollowers
   - Use its `needs_reply` classification to gate ingest
@@ -76,10 +79,12 @@ When creator actions a cluster:
 ## Query Filtering
 
 ### Status Filter
+
 - `clusters(status: Open)` - only open clusters
 - `clusters(status: Actioned)` - completed clusters
 
 ### Channel Count Filter
+
 - `clusters(minChannelCount: 2)` - only clusters with 2+ channels
 - Use case: Hide single-message clusters (not worth bulk replying)
 - Implemented via SQL `HAVING COUNT(DISTINCT m.channel_id) >= $N`
@@ -109,11 +114,13 @@ DELETE FROM messages WHERE creator_id = $1;
 #### Message Deleted from Stream
 
 Option A: Hard delete
+
 ```sql
 DELETE FROM messages WHERE external_message_id = $1;
 ```
 
 Option B: Soft delete (for audit trail)
+
 ```sql
 ALTER TABLE messages ADD COLUMN deleted_at timestamptz;
 UPDATE messages SET deleted_at = now() WHERE external_message_id = $1;
@@ -131,6 +138,7 @@ DELETE FROM messages WHERE channel_id = $1;
 ### Summary Fields (Nice to Have)
 
 Add to clusters table for AI-generated summaries:
+
 ```sql
 ALTER TABLE clusters ADD COLUMN summary_label text;
 ALTER TABLE clusters ADD COLUMN summary_description text;
@@ -141,15 +149,18 @@ ALTER TABLE clusters ADD COLUMN summary_description text;
 ## API Surface (Current)
 
 ### Mutations
+
 - ✅ `ingestMessage` - Add message, auto-cluster
 - ✅ `actionCluster` - Bulk reply (sets status, response, replied_at)
 - ✅ `removeClusterMessage` - Remove one message (auto-deletes cluster if empty)
 
 ### Queries
+
 - ✅ `clusters(creatorId, status?, minChannelCount?)` - List with filters
 - ✅ `cluster(id)` - Detail view with messages
 
 ### Future Mutations
+
 - ⏳ `markChannelReplied(creatorId, channelId)` - External reply handling
 - ⏳ `deleteMessage(externalMessageId)` - Sync deletions from Stream
 - ⏳ `deleteCreatorData(creatorId)` - Cleanup on account deletion
@@ -186,6 +197,7 @@ sequenceDiagram
 ## Testing
 
 E2E tests cover:
+
 - ✅ Message ingestion & clustering
 - ✅ Trigram matching (near-exact duplicates)
 - ✅ Auto-supersede (one message per channel)

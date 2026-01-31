@@ -130,6 +130,17 @@ mutation RemoveMessage {
 
 Copy `.env.example` to `.env` for local runs outside Docker.
 
-- `SIMILARITY_THRESHOLD` defaults to `0.9` (precision > recall)
+**Thresholds** (hardcoded in `messages.service.ts`, TODO: move to feature flags):
+- `SIMILARITY_THRESHOLD = 0.9` - Vector cosine similarity (semantic matching, precision > recall)
+- `TRIGRAM_THRESHOLD = 0.85` - pg_trgm similarity (near-exact text matching)
+
+**Environment Variables:**
 - `EMBEDDING_PROVIDER` = `stub` or `openai`
-- `OPENAI_API_KEY` required if using `openai`
+  - `stub` - Hash-based embeddings (fast, deterministic, no semantic similarity)
+  - `openai` - Real semantic embeddings via OpenAI API
+- `OPENAI_API_KEY` - Required if using `openai` provider
+- `OPENAI_EMBEDDING_MODEL` - Defaults to `text-embedding-3-small`
+
+**Testing:**
+- Tests use `EMBEDDING_PROVIDER=stub` (see `.env.test`)
+- Tests use identical text to trigger trigram matches (stub embeddings don't capture semantic similarity)
