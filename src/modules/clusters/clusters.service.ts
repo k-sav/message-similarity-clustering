@@ -144,7 +144,7 @@ export class ClustersService {
       [id],
     );
 
-    if (clusterResult.rowCount === 0) {
+    if (!clusterResult.rowCount || clusterResult.rowCount === 0) {
       throw new Error("Cluster not found");
     }
 
@@ -184,7 +184,7 @@ export class ClustersService {
           [id, ClusterStatus.Actioned, responseText],
         );
 
-        if (update.rowCount === 0) {
+        if (!update.rowCount || update.rowCount === 0) {
           throw new Error("Cluster not found");
         }
 
@@ -237,7 +237,7 @@ export class ClustersService {
           [clusterId, messageId],
         );
 
-        if (deleted.rowCount === 0) {
+        if (!deleted.rowCount || deleted.rowCount === 0) {
           throw new Error("Message not found in cluster");
         }
 

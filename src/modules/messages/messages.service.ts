@@ -77,7 +77,7 @@ export class MessagesService {
             [input.text, input.creatorId, TRIGRAM_THRESHOLD],
           );
 
-          if (trigramMatch.rowCount > 0) {
+          if (trigramMatch.rowCount && trigramMatch.rowCount > 0) {
             const match = trigramMatch.rows[0];
             matchedMessageId = match.id;
             similarity = Number(match.trgm_similarity);
@@ -176,6 +176,7 @@ export class MessagesService {
           );
 
           if (
+            match.rowCount &&
             match.rowCount > 0 &&
             match.rows[0].similarity >= SIMILARITY_THRESHOLD
           ) {
