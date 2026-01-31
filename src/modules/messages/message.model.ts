@@ -24,6 +24,9 @@ export class Message {
   @Field({ nullable: true })
   visitorUsername?: string;
 
+  @Field({ nullable: true })
+  visitorAvatarUrl?: string;
+
   @Field()
   text!: string;
 

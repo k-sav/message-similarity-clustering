@@ -11,11 +11,11 @@ type ClusterRow = {
   response_text: string | null;
   created_at: Date;
   updated_at: Date;
-  message_count: number;
   channel_count: number;
   preview_text: string | null;
   representative_visitor: string | null;
   additional_visitor_count: number;
+  visitor_avatar_urls: string[] | null;
 };
 
 type MessageRow = {
@@ -57,7 +57,6 @@ export class ClustersService {
           c.response_text,
           c.created_at,
           c.updated_at,
-          COUNT(cm.message_id)::int AS message_count,
           COUNT(DISTINCT m.channel_id)::int AS channel_count,
           (
             SELECT m2.text
@@ -75,7 +74,14 @@ export class ClustersService {
             ORDER BY m2.created_at ASC
             LIMIT 1
           ) AS representative_visitor,
-          (COUNT(DISTINCT m.visitor_user_id)::int - 1) AS additional_visitor_count
+          (COUNT(DISTINCT m.visitor_user_id)::int - 1) AS additional_visitor_count,
+          (
+            SELECT array_agg(DISTINCT m2.raw_payload->'user'->>'image')
+            FROM cluster_messages cm2
+            JOIN messages m2 ON m2.id = cm2.message_id
+            WHERE cm2.cluster_id = c.id
+              AND m2.raw_payload->'user'->>'image' IS NOT NULL
+          ) AS visitor_avatar_urls
         FROM clusters c
         LEFT JOIN cluster_messages cm
           ON cm.cluster_id = c.id
@@ -102,7 +108,6 @@ export class ClustersService {
           c.response_text,
           c.created_at,
           c.updated_at,
-          COUNT(cm.message_id)::int AS message_count,
           COUNT(DISTINCT m.channel_id)::int AS channel_count,
           (
             SELECT m2.text
@@ -120,7 +125,14 @@ export class ClustersService {
             ORDER BY m2.created_at ASC
             LIMIT 1
           ) AS representative_visitor,
-          (COUNT(DISTINCT m.visitor_user_id)::int - 1) AS additional_visitor_count
+          (COUNT(DISTINCT m.visitor_user_id)::int - 1) AS additional_visitor_count,
+          (
+            SELECT array_agg(DISTINCT m2.raw_payload->'user'->>'image')
+            FROM cluster_messages cm2
+            JOIN messages m2 ON m2.id = cm2.message_id
+            WHERE cm2.cluster_id = c.id
+              AND m2.raw_payload->'user'->>'image' IS NOT NULL
+          ) AS visitor_avatar_urls
         FROM clusters c
         LEFT JOIN cluster_messages cm
           ON cm.cluster_id = c.id
@@ -256,16 +268,20 @@ export class ClustersService {
       responseText: row.response_text || undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      messageCount: row.message_count,
       channelCount: row.channel_count || 0,
       previewText: row.preview_text || undefined,
       representativeVisitor: row.representative_visitor || undefined,
       additionalVisitorCount: Math.max(0, row.additional_visitor_count || 0),
+      visitorAvatarUrls: row.visitor_avatar_urls || undefined,
       messages: undefined,
     };
   }
 
   private mapMessageRow(row: MessageRow): Message {
+    // Extract avatar URL from rawPayload.user.image
+    const avatarUrl = (row.raw_payload as { user?: { image?: string } })?.user
+      ?.image;
+
     return {
       id: row.id,
       externalMessageId: row.external_message_id,
@@ -274,6 +290,7 @@ export class ClustersService {
       channelCid: row.channel_cid || undefined,
       visitorUserId: row.visitor_user_id || undefined,
       visitorUsername: row.visitor_username || undefined,
+      visitorAvatarUrl: avatarUrl || undefined,
       text: row.text,
       createdAt: row.created_at,
       repliedAt: row.replied_at || undefined,

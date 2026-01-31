@@ -15,7 +15,7 @@ headers {
 
 body:json {
   {
-    "query": "query ClusterDetail($clusterId: ID!) { cluster(id: $clusterId) { id status responseText messageCount messages { id text createdAt channelId visitorUserId } } }",
+    "query": "query ClusterDetail($clusterId: ID!) { cluster(id: $clusterId) { id status responseText channelCount messages { id text createdAt channelId visitorUserId visitorUsername visitorAvatarUrl } } }",
     "variables": {
       "clusterId": "REPLACE_CLUSTER_ID"
     }

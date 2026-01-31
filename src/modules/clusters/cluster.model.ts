@@ -22,9 +22,6 @@ export class Cluster {
   @Field()
   updatedAt!: Date;
 
-  @Field(() => Int)
-  messageCount!: number;
-
   // UI list fields
   @Field(() => Int)
   channelCount!: number;
@@ -37,6 +34,9 @@ export class Cluster {
 
   @Field(() => Int)
   additionalVisitorCount!: number;
+
+  @Field(() => [String], { nullable: true })
+  visitorAvatarUrls?: string[];
 
   @Field(() => [Message], { nullable: true })
   messages?: Message[];

@@ -24,11 +24,13 @@
 ### Final Decision: DELETE approach
 
 Instead of tracking status on `cluster_messages`, we simply DELETE rows when messages are:
+
 - Superseded (new message from same channel)
 - Removed manually by creator
 - Actioned (cluster completed)
 
 **Rationale:**
+
 - Simpler schema (no status enum)
 - Simpler queries (no WHERE status='active' everywhere)
 - Fewer edge cases (no ON CONFLICT issues)
