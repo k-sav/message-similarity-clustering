@@ -21,29 +21,21 @@
 
 ## Decision: Message Status Strategy
 
-### Options
+### Final Decision: DELETE approach
 
-| Option                                   | Schema Change       | Pros                                                              | Cons                               |
-| ---------------------------------------- | ------------------- | ----------------------------------------------------------------- | ---------------------------------- |
-| **1. `excluded_at` only**                | None                | Simple, existing pattern                                          | No context on _why_ excluded       |
-| **2. Status enum on `cluster_messages`** | Add `status` column | Preserves reason, audit trail, UI can show "2 handled externally" | More complex queries               |
-| **3. Use `replied_at` on message**       | None                | Simplest, single source of truth                                  | No distinction between reply types |
+Instead of tracking status on `cluster_messages`, we simply DELETE rows when messages are:
+- Superseded (new message from same channel)
+- Removed manually by creator
+- Actioned (cluster completed)
 
-### Recommendation
+**Rationale:**
+- Simpler schema (no status enum)
+- Simpler queries (no WHERE status='active' everywhere)
+- Fewer edge cases (no ON CONFLICT issues)
+- Trade-off: no audit trail, but acceptable for POC
 
-**Option 2** for production-quality UX. Proposed enum values:
-
-```sql
-CREATE TYPE cluster_message_status AS ENUM (
-  'active',           -- Default, actionable
-  'actioned',         -- Replied via bulk action
-  'externally_handled', -- Creator replied outside bulk flow
-  'superseded',       -- Newer message from same channel exists
-  'removed'           -- Manually removed by creator
-);
-```
-
-Queries filter by `status = 'active'` for actionable clusters.
+The message data remains in `messages` table (with `replied_at` set if actioned).
+Only the cluster membership is removed.
 
 ---
 

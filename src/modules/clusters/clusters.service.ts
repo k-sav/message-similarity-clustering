@@ -63,7 +63,7 @@ export class ClustersService {
             SELECT m2.text
             FROM cluster_messages cm2
             JOIN messages m2 ON m2.id = cm2.message_id
-            WHERE cm2.cluster_id = c.id AND cm2.status = 'active'
+            WHERE cm2.cluster_id = c.id
             ORDER BY m2.created_at ASC
             LIMIT 1
           ) AS preview_text,
@@ -71,14 +71,14 @@ export class ClustersService {
             SELECT m2.visitor_username
             FROM cluster_messages cm2
             JOIN messages m2 ON m2.id = cm2.message_id
-            WHERE cm2.cluster_id = c.id AND cm2.status = 'active'
+            WHERE cm2.cluster_id = c.id
             ORDER BY m2.created_at ASC
             LIMIT 1
           ) AS representative_visitor,
           (COUNT(DISTINCT m.visitor_user_id)::int - 1) AS additional_visitor_count
         FROM clusters c
         LEFT JOIN cluster_messages cm
-          ON cm.cluster_id = c.id AND cm.status = 'active'
+          ON cm.cluster_id = c.id
         LEFT JOIN messages m
           ON m.id = cm.message_id
         WHERE c.creator_id = $1
@@ -108,7 +108,7 @@ export class ClustersService {
             SELECT m2.text
             FROM cluster_messages cm2
             JOIN messages m2 ON m2.id = cm2.message_id
-            WHERE cm2.cluster_id = c.id AND cm2.status = 'active'
+            WHERE cm2.cluster_id = c.id
             ORDER BY m2.created_at ASC
             LIMIT 1
           ) AS preview_text,
@@ -116,14 +116,14 @@ export class ClustersService {
             SELECT m2.visitor_username
             FROM cluster_messages cm2
             JOIN messages m2 ON m2.id = cm2.message_id
-            WHERE cm2.cluster_id = c.id AND cm2.status = 'active'
+            WHERE cm2.cluster_id = c.id
             ORDER BY m2.created_at ASC
             LIMIT 1
           ) AS representative_visitor,
           (COUNT(DISTINCT m.visitor_user_id)::int - 1) AS additional_visitor_count
         FROM clusters c
         LEFT JOIN cluster_messages cm
-          ON cm.cluster_id = c.id AND cm.status = 'active'
+          ON cm.cluster_id = c.id
         LEFT JOIN messages m
           ON m.id = cm.message_id
         WHERE c.id = $1
@@ -149,7 +149,6 @@ export class ClustersService {
         INNER JOIN cluster_messages cm
           ON cm.message_id = m.id
         WHERE cm.cluster_id = $1
-          AND cm.status = 'active'
         ORDER BY m.created_at ASC
       `,
       [clusterId],
@@ -186,19 +185,16 @@ export class ClustersService {
               SELECT message_id
               FROM cluster_messages
               WHERE cluster_id = $1
-                AND status = 'active'
             )
           `,
           [id],
         );
 
-        // Update cluster_messages status to actioned
+        // Remove messages from cluster (they're now replied)
         await client.query(
           `
-            UPDATE cluster_messages
-            SET status = 'actioned'
+            DELETE FROM cluster_messages
             WHERE cluster_id = $1
-              AND status = 'active'
           `,
           [id],
         );
@@ -220,18 +216,16 @@ export class ClustersService {
     await this.db.withClient(async (client) => {
       await client.query("BEGIN");
       try {
-        const update = await client.query(
+        const deleted = await client.query(
           `
-            UPDATE cluster_messages
-            SET status = 'removed'
+            DELETE FROM cluster_messages
             WHERE cluster_id = $1
               AND message_id = $2
-              AND status = 'active'
           `,
           [clusterId, messageId],
         );
 
-        if (update.rowCount === 0) {
+        if (deleted.rowCount === 0) {
           throw new Error("Message not found in cluster");
         }
 

@@ -58,13 +58,12 @@ export class MessagesService {
                   SELECT 1 FROM cluster_messages cm2
                   JOIN messages m2 ON m2.id = cm2.message_id
                   WHERE cm2.cluster_id = cm.cluster_id
-                    AND cm2.status = 'active'
                     AND m2.embedding IS NOT NULL
                     AND m2.id <> m.id
                 ) AS cluster_has_embeddings
               FROM messages m
               LEFT JOIN cluster_messages cm
-                ON cm.message_id = m.id AND cm.status = 'active'
+                ON cm.message_id = m.id
               LEFT JOIN clusters c
                 ON c.id = cm.cluster_id
               WHERE m.creator_id = $2
@@ -138,17 +137,15 @@ export class MessagesService {
 
         const messageId = insert.rows[0].id;
 
-        // Step 3.5: Auto-supersede old messages from same channel (one msg per channel rule)
+        // Step 3.5: Remove old messages from same channel from clusters (one msg per channel rule)
         await client.query(
           `
-            UPDATE cluster_messages cm
-            SET status = 'superseded'
-            FROM messages m
+            DELETE FROM cluster_messages cm
+            USING messages m
             WHERE cm.message_id = m.id
               AND m.channel_id = $1
               AND m.creator_id = $2
               AND m.id <> $3
-              AND cm.status = 'active'
           `,
           [input.channelId, input.creatorId, messageId],
         );
@@ -163,7 +160,7 @@ export class MessagesService {
                 (1 - (m.embedding <=> $1)) AS similarity
               FROM messages m
               LEFT JOIN cluster_messages cm
-                ON cm.message_id = m.id AND cm.status = 'active'
+                ON cm.message_id = m.id
               LEFT JOIN clusters c
                 ON c.id = cm.cluster_id
               WHERE m.creator_id = $2
@@ -202,8 +199,7 @@ export class MessagesService {
                   INSERT INTO cluster_messages (cluster_id, message_id)
                   VALUES ($1, $2)
                   ON CONFLICT (message_id) DO UPDATE SET
-                    cluster_id = EXCLUDED.cluster_id,
-                    status = 'active'
+                    cluster_id = EXCLUDED.cluster_id
                 `,
                 [clusterId, matchedMessageId],
               );
