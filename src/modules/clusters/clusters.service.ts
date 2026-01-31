@@ -26,6 +26,7 @@ type MessageRow = {
   created_at: Date;
   replied_at: Date | null;
   is_paid_dm: boolean;
+  raw_payload: Record<string, unknown> | null;
 };
 
 @Injectable()
@@ -223,6 +224,7 @@ export class ClustersService {
       createdAt: row.created_at,
       repliedAt: row.replied_at || undefined,
       isPaidDm: row.is_paid_dm,
+      rawPayload: row.raw_payload || undefined,
     };
   }
 }

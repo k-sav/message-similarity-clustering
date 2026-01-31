@@ -38,10 +38,17 @@ Variables (mapped from your Stream payload):
     "visitorUserId": "584f0f9d-f952-4251-9fd7-cf8bb1f40931",
     "visitorUsername": "k_sav1",
     "createdAt": "2025-10-21T12:55:27.453888Z",
-    "isPaidDm": false
+    "isPaidDm": false,
+    "rawPayload": {
+      "user": { "id": "...", "name": "k_sav1", "image": "https://..." },
+      "type": "regular",
+      "html": "<p>hello</p>"
+    }
   }
 }
 ```
+
+`rawPayload` is optional - stores the full Stream message for future use (avatars, metadata).
 
 ### List clusters
 

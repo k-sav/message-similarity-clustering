@@ -4,6 +4,17 @@
 
 - Messages ingested with embeddings, clustered by similarity
 - `cluster_messages` join table has `excluded_at` for manual removal
+- `raw_payload jsonb` column added for storing full Stream payload (avatars, metadata)
+- **pg_trgm optimization**: Near-exact duplicates skip embedding API call
+  - `TRIGRAM_THRESHOLD = 0.85` - hardcoded constant
+  - `SIMILARITY_THRESHOLD = 0.9` - hardcoded constant
+  - Only skips embedding when joining a cluster that has other embedded messages
+  - `embedding` column is now nullable
+  - TODO: Move thresholds to feature flag system for production
+- **No-response filter**: Messages that don't need a response are rejected at ingest
+  - "thanks", "ok", "👍", short acks → not stored, not embedded
+  - Returns `{ skipped: true, skipReason: "no_response_needed" }`
+  - Saves storage, embedding costs, and cluster noise
 - No handling for: external replies, superseded messages, deleted users/messages
 
 ---

@@ -1,4 +1,5 @@
 import { Field, ID, ObjectType } from "@nestjs/graphql";
+import GraphQLJSON from "graphql-type-json";
 
 @ObjectType()
 export class Message {
@@ -34,4 +35,7 @@ export class Message {
 
   @Field()
   isPaidDm!: boolean;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  rawPayload?: Record<string, unknown>;
 }

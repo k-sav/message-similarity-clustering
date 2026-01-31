@@ -2,11 +2,13 @@ import { Field, ID, InputType } from "@nestjs/graphql";
 import {
   IsBoolean,
   IsDate,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
 } from "class-validator";
 import { Type } from "class-transformer";
+import GraphQLJSON from "graphql-type-json";
 
 @InputType()
 export class IngestMessageInput {
@@ -52,4 +54,9 @@ export class IngestMessageInput {
   @IsOptional()
   @IsBoolean()
   isPaidDm?: boolean;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  @IsOptional()
+  @IsObject()
+  rawPayload?: Record<string, unknown>;
 }

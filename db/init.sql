@@ -1,5 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 DO $$
 BEGIN
@@ -17,10 +18,11 @@ CREATE TABLE IF NOT EXISTS messages (
   visitor_user_id text,
   visitor_username text,
   text text NOT NULL,
-  embedding vector(1536) NOT NULL,
+  embedding vector(1536),
   created_at timestamptz NOT NULL DEFAULT now(),
   replied_at timestamptz,
-  is_paid_dm boolean NOT NULL DEFAULT false
+  is_paid_dm boolean NOT NULL DEFAULT false,
+  raw_payload jsonb
 );
 
 CREATE TABLE IF NOT EXISTS clusters (
@@ -47,3 +49,4 @@ CREATE INDEX IF NOT EXISTS idx_clusters_creator ON clusters (creator_id);
 CREATE INDEX IF NOT EXISTS idx_clusters_status ON clusters (status);
 CREATE INDEX IF NOT EXISTS idx_cluster_messages_cluster ON cluster_messages (cluster_id);
 CREATE INDEX IF NOT EXISTS idx_messages_embedding ON messages USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_messages_text_trgm ON messages USING gist (text gist_trgm_ops);

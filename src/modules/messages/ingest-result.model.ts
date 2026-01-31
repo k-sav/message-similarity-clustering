@@ -1,16 +1,22 @@
-import { Field, Float, ID, ObjectType } from '@nestjs/graphql'
+import { Field, Float, ID, ObjectType } from "@nestjs/graphql";
 
 @ObjectType()
 export class IngestResult {
-  @Field(() => ID)
-  messageId!: string
+  @Field()
+  skipped!: boolean;
 
-  @Field(() => ID)
-  clusterId!: string
+  @Field({ nullable: true })
+  skipReason?: string;
 
   @Field(() => ID, { nullable: true })
-  matchedMessageId?: string
+  messageId?: string;
+
+  @Field(() => ID, { nullable: true })
+  clusterId?: string;
+
+  @Field(() => ID, { nullable: true })
+  matchedMessageId?: string;
 
   @Field(() => Float, { nullable: true })
-  similarity?: number
+  similarity?: number;
 }
