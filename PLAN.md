@@ -1,197 +1,158 @@
-# Cluster Rules & Cleanup Plan
+# Cluster Rules & Implementation Summary
 
-## Current State
+## Current State (Implemented)
 
-- Messages ingested with embeddings, clustered by similarity
-- `cluster_messages` join table has `excluded_at` for manual removal
-- `raw_payload jsonb` column added for storing full Stream payload (avatars, metadata)
-- **pg_trgm optimization**: Near-exact duplicates skip embedding API call
+### Core Features
+- ✅ Messages ingested with embeddings, clustered by similarity
+- ✅ `cluster_messages` join table (simple many-to-many, no status tracking)
+- ✅ `raw_payload jsonb` stores full Stream message (avatars, metadata)
+- ✅ Auto-supersede: Only latest message per channel stays in cluster
+- ✅ Auto-delete: Empty clusters deleted when last message removed
+- ✅ `minChannelCount` filter: Only show clusters with N+ channels
+
+### Optimizations
+- ✅ **pg_trgm optimization**: Near-exact duplicates skip embedding API call
   - `TRIGRAM_THRESHOLD = 0.85` - hardcoded constant
   - `SIMILARITY_THRESHOLD = 0.9` - hardcoded constant
   - Only skips embedding when joining a cluster that has other embedded messages
-  - `embedding` column is now nullable
+  - `embedding` column is nullable
   - TODO: Move thresholds to feature flag system for production
+
+### Production Integration Notes
 - **No-response filter**: Removed from POC
   - In production, integrate with `StreamChatTaggingProcessor` in ltfollowers
   - Use its `needs_reply` classification to gate ingest
   - Avoids duplicating heuristics/LLM calls
-- No handling for: external replies, superseded messages, deleted users/messages
+- **Paid DMs**: Excluded from clustering (never matched)
 
 ---
 
-## Decision: Message Status Strategy
+## Behavioral Rules (Implemented)
 
-### Final Decision: DELETE approach
-
-Instead of tracking status on `cluster_messages`, we simply DELETE rows when messages are:
-
-- Superseded (new message from same channel)
-- Removed manually by creator
-- Actioned (cluster completed)
-
-**Rationale:**
-
-- Simpler schema (no status enum)
-- Simpler queries (no WHERE status='active' everywhere)
-- Fewer edge cases (no ON CONFLICT issues)
-- Trade-off: no audit trail, but acceptable for POC
-
-The message data remains in `messages` table (with `replied_at` set if actioned).
-Only the cluster membership is removed.
-
----
-
-## Behavioral Rules
-
-### 1. One message per channel per cluster
+### 1. One message per channel per cluster ✅
 
 When a new message arrives from a channel that already has a message in any cluster:
 
-- Mark the old message as `superseded`
+- **DELETE** the old message from `cluster_messages`
 - New message can be clustered normally
 
 ```sql
-UPDATE cluster_messages cm
-SET status = 'superseded'
-FROM messages m
+-- Implemented in ingestMessage after insert
+DELETE FROM cluster_messages cm
+USING messages m
 WHERE cm.message_id = m.id
   AND m.channel_id = $1
-  AND m.id <> $2
-  AND cm.status = 'active'
+  AND m.creator_id = $2
+  AND m.id <> $3  -- not the new message
 ```
 
-### 2. External reply handling
+### 2. Auto-delete empty clusters ✅
 
-When creator replies outside bulk flow (via GetStream directly):
+When `removeClusterMessage` removes the last message:
 
-- Call `markChannelReplied(creatorId, channelId)`
-- Sets `replied_at` on message
-- Sets `status = 'externally_handled'` on cluster_messages
+- **DELETE** the cluster from `clusters` table
+- Returns `null` to indicate deletion
 
-### 3. Bulk action
+```sql
+-- Implemented in removeClusterMessage
+DELETE FROM clusters
+WHERE id = $1
+AND NOT EXISTS (
+  SELECT 1 FROM cluster_messages WHERE cluster_id = $1
+)
+```
+
+### 3. Bulk action ✅
 
 When creator actions a cluster:
 
-- Sets `status = 'actioned'` on all active messages in cluster
-- Sets `replied_at` on messages
+- Sets `status = 'actioned'` on cluster
+- Sets `replied_at` on all messages
 - Stores response text on cluster
+- **DELETES** all entries from `cluster_messages`
 
 ---
 
-## Cleanup Scenarios
+## Query Filtering
 
-### User Deleted
+### Status Filter
+- `clusters(status: Open)` - only open clusters
+- `clusters(status: Actioned)` - completed clusters
 
-When a creator account is deleted:
+### Channel Count Filter
+- `clusters(minChannelCount: 2)` - only clusters with 2+ channels
+- Use case: Hide single-message clusters (not worth bulk replying)
+- Implemented via SQL `HAVING COUNT(DISTINCT m.channel_id) >= $N`
 
-- Delete all their messages from `messages` table (CASCADE handles `cluster_messages`)
-- Delete all their clusters from `clusters` table
-- Or: soft delete with `deleted_at` if audit trail needed
+---
+
+## Not Yet Implemented (Future Work)
+
+### External Reply Handling
+
+When creator replies outside bulk flow (via GetStream directly):
+
+- Add mutation: `markChannelReplied(creatorId, channelId)`
+- Sets `replied_at` on message
+- Removes message from `cluster_messages`
+
+### Cleanup Scenarios
+
+#### User Deleted
 
 ```sql
--- Hard delete approach
+-- Hard delete approach (CASCADE handles cluster_messages)
 DELETE FROM clusters WHERE creator_id = $1;
 DELETE FROM messages WHERE creator_id = $1;
 ```
 
-### Message Deleted from Stream
+#### Message Deleted from Stream
 
-When a message is deleted externally (GetStream webhook or sync):
-
-- Option A: Hard delete from our DB
-- Option B: Mark with `deleted_at`, exclude from queries
-
+Option A: Hard delete
 ```sql
--- Option A
 DELETE FROM messages WHERE external_message_id = $1;
+```
 
--- Option B
+Option B: Soft delete (for audit trail)
+```sql
 ALTER TABLE messages ADD COLUMN deleted_at timestamptz;
 UPDATE messages SET deleted_at = now() WHERE external_message_id = $1;
 ```
 
-Recommendation: **Option B** for audit trail, but either works for POC.
-
-### Channel Deleted
-
-When a channel is deleted from Stream:
-
-- Mark all messages from that channel as deleted
-- Or delete them entirely
+#### Channel Deleted
 
 ```sql
+-- Mark all messages from channel as deleted
 UPDATE messages SET deleted_at = now() WHERE channel_id = $1;
+-- Or hard delete
+DELETE FROM messages WHERE channel_id = $1;
 ```
 
-### Stale Clusters
+### Summary Fields (Nice to Have)
 
-Clusters with no active messages should be:
-
-- Auto-closed (set `status = 'Actioned'` or new `'Empty'` status)
-- Or cleaned up by background job
-
+Add to clusters table for AI-generated summaries:
 ```sql
--- Find clusters with no active messages
-SELECT c.id
-FROM clusters c
-WHERE c.status = 'Open'
-AND NOT EXISTS (
-  SELECT 1 FROM cluster_messages cm
-  WHERE cm.cluster_id = c.id AND cm.status = 'active'
-);
-```
-
----
-
-## Schema Changes Required
-
-```sql
--- 1. Add status enum to cluster_messages
-CREATE TYPE cluster_message_status AS ENUM (
-  'active',
-  'actioned',
-  'externally_handled',
-  'superseded',
-  'removed'
-);
-
-ALTER TABLE cluster_messages
-ADD COLUMN status cluster_message_status NOT NULL DEFAULT 'active';
-
--- 2. Add deleted_at to messages (optional, for soft delete)
-ALTER TABLE messages ADD COLUMN deleted_at timestamptz;
-
--- 3. Add summary fields to clusters
 ALTER TABLE clusters ADD COLUMN summary_label text;
 ALTER TABLE clusters ADD COLUMN summary_description text;
 ```
 
 ---
 
-## API Changes
+## API Surface (Current)
 
-### New Mutations
+### Mutations
+- ✅ `ingestMessage` - Add message, auto-cluster
+- ✅ `actionCluster` - Bulk reply (sets status, response, replied_at)
+- ✅ `removeClusterMessage` - Remove one message (auto-deletes cluster if empty)
 
-```graphql
-# Mark channel as replied externally
-markChannelReplied(creatorId: ID!, channelId: String!): Boolean!
+### Queries
+- ✅ `clusters(creatorId, status?, minChannelCount?)` - List with filters
+- ✅ `cluster(id)` - Detail view with messages
 
-# Sync deletion from Stream
-deleteMessage(externalMessageId: String!): Boolean!
-
-# Cleanup user data
-deleteCreatorData(creatorId: ID!): Boolean!
-```
-
-### Query Changes
-
-All cluster queries filter by `cm.status = 'active'`:
-
-```sql
-SELECT ... FROM cluster_messages cm
-WHERE cm.status = 'active'
--- instead of: WHERE cm.excluded_at IS NULL
-```
+### Future Mutations
+- ⏳ `markChannelReplied(creatorId, channelId)` - External reply handling
+- ⏳ `deleteMessage(externalMessageId)` - Sync deletions from Stream
+- ⏳ `deleteCreatorData(creatorId)` - Cleanup on account deletion
 
 ---
 
@@ -206,39 +167,44 @@ sequenceDiagram
     Note over Stream,DB: Message Ingest
     Stream->>API: New message webhook
     API->>DB: Insert message + embedding
-    API->>DB: Mark old channel messages as 'superseded'
+    API->>DB: DELETE old messages from same channel
     API->>DB: Find similar messages, assign cluster
 
-    Note over Stream,DB: External Reply
-    Stream->>API: Creator sent message webhook
-    API->>DB: Set replied_at on message
-    API->>DB: Set status = 'externally_handled'
-
     Note over Stream,DB: Bulk Action
-    API->>DB: Set status = 'actioned' on cluster messages
+    API->>DB: Set status = 'actioned' on cluster
     API->>DB: Set replied_at on messages
+    API->>DB: DELETE all cluster_messages for cluster
     API->>DB: Store response on cluster
 
-    Note over Stream,DB: Cleanup
-    Stream->>API: Message/channel deleted webhook
-    API->>DB: Set deleted_at or hard delete
+    Note over Stream,DB: Remove Message
+    API->>DB: DELETE from cluster_messages
+    API->>DB: DELETE cluster if empty
 ```
 
 ---
 
-## Implementation Order
+## Testing
 
-1. **Schema**: Add `cluster_message_status` enum, migrate `excluded_at` to `status = 'removed'`
-2. **Ingest**: Auto-mark superseded messages on new message
-3. **External reply**: Add `markChannelReplied` mutation
-4. **Cleanup**: Add deletion mutations
-5. **Queries**: Update all queries to filter by `status = 'active'`
-6. **Summary fields**: Add to cluster model
+E2E tests cover:
+- ✅ Message ingestion & clustering
+- ✅ Trigram matching (near-exact duplicates)
+- ✅ Auto-supersede (one message per channel)
+- ✅ Cluster listing with filters (status, minChannelCount)
+- ✅ Cluster detail with messages & avatars
+- ✅ Remove message from cluster
+- ✅ Auto-delete empty clusters
+- ✅ Action cluster (bulk reply)
+- ✅ Status filtering
+- ✅ Paid DM exclusion
+
+Run tests: `npm run test:e2e`
 
 ---
 
 ## Notes
 
+- DELETE approach chosen over status tracking for simplicity
+- Message data stays in `messages` table (with `replied_at` if actioned)
+- Only cluster membership (`cluster_messages`) is deleted
+- Trade-off: No audit trail on cluster membership, but acceptable for POC
 - Schema changes require: `docker-compose down -v && docker-compose up --build`
-- Consider background job for stale cluster cleanup in production
-- Soft delete preferred for audit trail, but hard delete simpler for POC

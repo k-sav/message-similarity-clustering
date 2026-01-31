@@ -264,10 +264,7 @@ export class ClustersService {
 
         if (!emptyCheck.rows[0].has_messages) {
           // Cluster is empty - delete it
-          await client.query(
-            `DELETE FROM clusters WHERE id = $1`,
-            [clusterId],
-          );
+          await client.query(`DELETE FROM clusters WHERE id = $1`, [clusterId]);
           clusterDeleted = true;
         } else {
           // Cluster still has messages - update timestamp
