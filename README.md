@@ -73,6 +73,7 @@ query ListClusters {
 ```
 
 **Parameters:**
+
 - `status` (optional): Filter by `Open` or `Actioned`
 - `minChannelCount` (optional): Only show clusters with at least N channels (use `2` to hide single-message clusters)
 
@@ -131,10 +132,12 @@ mutation RemoveMessage {
 Copy `.env.example` to `.env` for local runs outside Docker.
 
 **Thresholds** (hardcoded in `messages.service.ts`, TODO: move to feature flags):
+
 - `SIMILARITY_THRESHOLD = 0.9` - Vector cosine similarity (semantic matching, precision > recall)
 - `TRIGRAM_THRESHOLD = 0.85` - pg_trgm similarity (near-exact text matching)
 
 **Environment Variables:**
+
 - `EMBEDDING_PROVIDER` = `stub` or `openai`
   - `stub` - Hash-based embeddings (fast, deterministic, no semantic similarity)
   - `openai` - Real semantic embeddings via OpenAI API
@@ -142,5 +145,6 @@ Copy `.env.example` to `.env` for local runs outside Docker.
 - `OPENAI_EMBEDDING_MODEL` - Defaults to `text-embedding-3-small`
 
 **Testing:**
+
 - Tests use `EMBEDDING_PROVIDER=stub` (see `.env.test`)
 - Tests use identical text to trigger trigram matches (stub embeddings don't capture semantic similarity)
