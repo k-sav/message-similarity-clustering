@@ -1,0 +1,23 @@
+meta {
+  name: ClusterDetail
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}
+  body: json
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "query": "query ClusterDetail($clusterId: ID!) { cluster(id: $clusterId) { id status responseText messageCount messages { id text createdAt channelId visitorUserId } } }",
+    "variables": {
+      "clusterId": "REPLACE_CLUSTER_ID"
+    }
+  }
+}

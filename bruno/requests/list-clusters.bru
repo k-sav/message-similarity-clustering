@@ -1,0 +1,24 @@
+meta {
+  name: ListClusters
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}
+  body: json
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "query": "query ListClusters($creatorId: ID!, $status: ClusterStatus) { clusters(creatorId: $creatorId, status: $status) { id status messageCount createdAt updatedAt } }",
+    "variables": {
+      "creatorId": "584f0f9d-f952-4251-9fd7-cf8bb1f40931",
+      "status": "Open"
+    }
+  }
+}

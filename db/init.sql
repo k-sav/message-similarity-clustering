@@ -17,8 +17,6 @@ CREATE TABLE IF NOT EXISTS messages (
   visitor_user_id text,
   visitor_username text,
   text text NOT NULL,
-  html text,
-  message_type text,
   embedding vector(1536) NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   replied_at timestamptz,

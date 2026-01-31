@@ -1,34 +1,36 @@
-import { Injectable } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
-import { DbService } from '../../db/db.service'
-import { toVectorLiteral } from '../../db/vector'
-import { EmbeddingsService } from '../embeddings/embeddings.service'
-import { IngestMessageInput } from './ingest-message.input'
-import { IngestResult } from './ingest-result.model'
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { DbService } from "../../db/db.service";
+import { toVectorLiteral } from "../../db/vector";
+import { EmbeddingsService } from "../embeddings/embeddings.service";
+import { IngestMessageInput } from "./ingest-message.input";
+import { IngestResult } from "./ingest-result.model";
 
 type MatchRow = {
-  id: string
-  cluster_id: string | null
-  similarity: number
-}
+  id: string;
+  cluster_id: string | null;
+  similarity: number;
+};
 
 @Injectable()
 export class MessagesService {
   constructor(
     private db: DbService,
     private embeddings: EmbeddingsService,
-    private config: ConfigService
+    private config: ConfigService,
   ) {}
 
   async ingestMessage(input: IngestMessageInput): Promise<IngestResult> {
-    const embedding = await this.embeddings.embed(input.text)
-    const embeddingLiteral = toVectorLiteral(embedding)
-    const similarityThreshold = Number(this.config.get<string>('SIMILARITY_THRESHOLD') || 0.9)
-    const isPaidDm = input.isPaidDm === true
-    const createdAt = input.createdAt || new Date()
+    const embedding = await this.embeddings.embed(input.text);
+    const embeddingLiteral = toVectorLiteral(embedding);
+    const similarityThreshold = Number(
+      this.config.get<string>("SIMILARITY_THRESHOLD") || 0.9,
+    );
+    const isPaidDm = input.isPaidDm === true;
+    const createdAt = input.createdAt || new Date();
 
     return this.db.withClient(async (client) => {
-      await client.query('BEGIN')
+      await client.query("BEGIN");
       try {
         const insert = await client.query<{ id: string }>(
           `
@@ -40,13 +42,11 @@ export class MessagesService {
               visitor_user_id,
               visitor_username,
               text,
-              html,
-              message_type,
               embedding,
               created_at,
               is_paid_dm
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
             RETURNING id
           `,
           [
@@ -57,19 +57,17 @@ export class MessagesService {
             input.visitorUserId || null,
             input.visitorUsername || null,
             input.text,
-            input.html || null,
-            input.messageType || null,
             embeddingLiteral,
             createdAt,
-            isPaidDm
-          ]
-        )
+            isPaidDm,
+          ],
+        );
 
-        const messageId = insert.rows[0].id
+        const messageId = insert.rows[0].id;
 
-        let matchedMessageId: string | undefined
-        let similarity: number | undefined
-        let clusterId: string
+        let matchedMessageId: string | undefined;
+        let similarity: number | undefined;
+        let clusterId: string;
 
         if (!isPaidDm) {
           const match = await client.query<MatchRow>(
@@ -91,14 +89,17 @@ export class MessagesService {
               ORDER BY m.embedding <=> $1
               LIMIT 1
             `,
-            [embeddingLiteral, input.creatorId, messageId]
-          )
+            [embeddingLiteral, input.creatorId, messageId],
+          );
 
-          if (match.rowCount > 0 && match.rows[0].similarity >= similarityThreshold) {
-            matchedMessageId = match.rows[0].id
-            similarity = Number(match.rows[0].similarity)
+          if (
+            match.rowCount > 0 &&
+            match.rows[0].similarity >= similarityThreshold
+          ) {
+            matchedMessageId = match.rows[0].id;
+            similarity = Number(match.rows[0].similarity);
             if (match.rows[0].cluster_id) {
-              clusterId = match.rows[0].cluster_id
+              clusterId = match.rows[0].cluster_id;
             } else {
               const clusterInsert = await client.query<{ id: string }>(
                 `
@@ -106,16 +107,16 @@ export class MessagesService {
                   VALUES ($1)
                   RETURNING id
                 `,
-                [input.creatorId]
-              )
-              clusterId = clusterInsert.rows[0].id
+                [input.creatorId],
+              );
+              clusterId = clusterInsert.rows[0].id;
               await client.query(
                 `
                   INSERT INTO cluster_messages (cluster_id, message_id)
                   VALUES ($1, $2)
                 `,
-                [clusterId, matchedMessageId]
-              )
+                [clusterId, matchedMessageId],
+              );
             }
           } else {
             const clusterInsert = await client.query<{ id: string }>(
@@ -124,9 +125,9 @@ export class MessagesService {
                 VALUES ($1)
                 RETURNING id
               `,
-              [input.creatorId]
-            )
-            clusterId = clusterInsert.rows[0].id
+              [input.creatorId],
+            );
+            clusterId = clusterInsert.rows[0].id;
           }
         } else {
           const clusterInsert = await client.query<{ id: string }>(
@@ -135,9 +136,9 @@ export class MessagesService {
               VALUES ($1)
               RETURNING id
             `,
-            [input.creatorId]
-          )
-          clusterId = clusterInsert.rows[0].id
+            [input.creatorId],
+          );
+          clusterId = clusterInsert.rows[0].id;
         }
 
         await client.query(
@@ -145,20 +146,20 @@ export class MessagesService {
             INSERT INTO cluster_messages (cluster_id, message_id)
             VALUES ($1, $2)
           `,
-          [clusterId, messageId]
-        )
+          [clusterId, messageId],
+        );
 
-        await client.query('COMMIT')
+        await client.query("COMMIT");
         return {
           messageId,
           clusterId,
           matchedMessageId,
-          similarity
-        }
+          similarity,
+        };
       } catch (error) {
-        await client.query('ROLLBACK')
-        throw error
+        await client.query("ROLLBACK");
+        throw error;
       }
-    })
+    });
   }
 }

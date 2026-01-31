@@ -1,0 +1,24 @@
+meta {
+  name: RemoveClusterMessage
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}
+  body: json
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "query": "mutation RemoveClusterMessage($clusterId: ID!, $messageId: ID!) { removeClusterMessage(clusterId: $clusterId, messageId: $messageId) { id messageCount } }",
+    "variables": {
+      "clusterId": "REPLACE_CLUSTER_ID",
+      "messageId": "REPLACE_MESSAGE_ID"
+    }
+  }
+}

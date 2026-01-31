@@ -1,0 +1,24 @@
+meta {
+  name: ActionCluster
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}
+  body: json
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "query": "mutation ActionCluster($clusterId: ID!, $responseText: String!) { actionCluster(id: $clusterId, responseText: $responseText) { id status responseText updatedAt } }",
+    "variables": {
+      "clusterId": "REPLACE_CLUSTER_ID",
+      "responseText": "Thanks for reaching out!"
+    }
+  }
+}

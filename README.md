@@ -33,8 +33,6 @@ Variables (mapped from your Stream payload):
     "creatorId": "584f0f9d-f952-4251-9fd7-cf8bb1f40931",
     "messageId": "873d1104-97b7-4254-a2e1-e47a031ac400",
     "text": "hello",
-    "html": "<p>hello</p>",
-    "messageType": "regular",
     "channelId": "!members-q7fVGv3qWpk2jUUWmXb-fIcc-XvTksxZZzYHxad12r0",
     "channelCid": "messaging:!members-q7fVGv3qWpk2jUUWmXb-fIcc-XvTksxZZzYHxad12r0",
     "visitorUserId": "584f0f9d-f952-4251-9fd7-cf8bb1f40931",

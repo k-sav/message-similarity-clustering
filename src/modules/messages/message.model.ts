@@ -1,43 +1,37 @@
-import { Field, ID, ObjectType } from '@nestjs/graphql'
+import { Field, ID, ObjectType } from "@nestjs/graphql";
 
 @ObjectType()
 export class Message {
   @Field(() => ID)
-  id!: string
+  id!: string;
 
   @Field()
-  externalMessageId!: string
+  externalMessageId!: string;
 
   @Field()
-  creatorId!: string
+  creatorId!: string;
 
   @Field()
-  channelId!: string
+  channelId!: string;
 
   @Field({ nullable: true })
-  channelCid?: string
+  channelCid?: string;
 
   @Field({ nullable: true })
-  visitorUserId?: string
+  visitorUserId?: string;
 
   @Field({ nullable: true })
-  visitorUsername?: string
+  visitorUsername?: string;
 
   @Field()
-  text!: string
-
-  @Field({ nullable: true })
-  html?: string
-
-  @Field({ nullable: true })
-  messageType?: string
+  text!: string;
 
   @Field()
-  createdAt!: Date
+  createdAt!: Date;
 
   @Field({ nullable: true })
-  repliedAt?: Date
+  repliedAt?: Date;
 
   @Field()
-  isPaidDm!: boolean
+  isPaidDm!: boolean;
 }

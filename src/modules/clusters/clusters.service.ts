@@ -1,45 +1,46 @@
-import { Injectable } from '@nestjs/common'
-import { DbService } from '../../db/db.service'
-import { Cluster } from './cluster.model'
-import { ClusterStatus } from './cluster-status.enum'
-import { Message } from '../messages/message.model'
+import { Injectable } from "@nestjs/common";
+import { DbService } from "../../db/db.service";
+import { Cluster } from "./cluster.model";
+import { ClusterStatus } from "./cluster-status.enum";
+import { Message } from "../messages/message.model";
 
 type ClusterRow = {
-  id: string
-  creator_id: string
-  status: ClusterStatus
-  response_text: string | null
-  created_at: Date
-  updated_at: Date
-  message_count: number
-}
+  id: string;
+  creator_id: string;
+  status: ClusterStatus;
+  response_text: string | null;
+  created_at: Date;
+  updated_at: Date;
+  message_count: number;
+};
 
 type MessageRow = {
-  id: string
-  external_message_id: string
-  creator_id: string
-  channel_id: string
-  channel_cid: string | null
-  visitor_user_id: string | null
-  visitor_username: string | null
-  text: string
-  html: string | null
-  message_type: string | null
-  created_at: Date
-  replied_at: Date | null
-  is_paid_dm: boolean
-}
+  id: string;
+  external_message_id: string;
+  creator_id: string;
+  channel_id: string;
+  channel_cid: string | null;
+  visitor_user_id: string | null;
+  visitor_username: string | null;
+  text: string;
+  created_at: Date;
+  replied_at: Date | null;
+  is_paid_dm: boolean;
+};
 
 @Injectable()
 export class ClustersService {
   constructor(private db: DbService) {}
 
-  async listClusters(creatorId: string, status?: ClusterStatus): Promise<Cluster[]> {
-    const params: Array<string | ClusterStatus> = [creatorId]
-    let statusFilter = ''
+  async listClusters(
+    creatorId: string,
+    status?: ClusterStatus,
+  ): Promise<Cluster[]> {
+    const params: Array<string | ClusterStatus> = [creatorId];
+    let statusFilter = "";
     if (status) {
-      params.push(status)
-      statusFilter = `AND c.status = $${params.length}`
+      params.push(status);
+      statusFilter = `AND c.status = $${params.length}`;
     }
 
     const result = await this.db.query<ClusterRow>(
@@ -60,10 +61,10 @@ export class ClustersService {
         GROUP BY c.id
         ORDER BY c.updated_at DESC
       `,
-      params
-    )
+      params,
+    );
 
-    return result.rows.map((row) => this.mapClusterRow(row))
+    return result.rows.map((row) => this.mapClusterRow(row));
   }
 
   async getCluster(id: string): Promise<Cluster> {
@@ -83,16 +84,16 @@ export class ClustersService {
         WHERE c.id = $1
         GROUP BY c.id
       `,
-      [id]
-    )
+      [id],
+    );
 
     if (clusterResult.rowCount === 0) {
-      throw new Error('Cluster not found')
+      throw new Error("Cluster not found");
     }
 
-    const cluster = this.mapClusterRow(clusterResult.rows[0])
-    cluster.messages = await this.getClusterMessages(id)
-    return cluster
+    const cluster = this.mapClusterRow(clusterResult.rows[0]);
+    cluster.messages = await this.getClusterMessages(id);
+    return cluster;
   }
 
   async getClusterMessages(clusterId: string): Promise<Message[]> {
@@ -106,15 +107,15 @@ export class ClustersService {
           AND cm.excluded_at IS NULL
         ORDER BY m.created_at ASC
       `,
-      [clusterId]
-    )
+      [clusterId],
+    );
 
-    return messages.rows.map((row) => this.mapMessageRow(row))
+    return messages.rows.map((row) => this.mapMessageRow(row));
   }
 
   async actionCluster(id: string, responseText: string): Promise<Cluster> {
     await this.db.withClient(async (client) => {
-      await client.query('BEGIN')
+      await client.query("BEGIN");
       try {
         const update = await client.query(
           `
@@ -124,11 +125,11 @@ export class ClustersService {
                 updated_at = now()
             WHERE id = $1
           `,
-          [id, ClusterStatus.Actioned, responseText]
-        )
+          [id, ClusterStatus.Actioned, responseText],
+        );
 
         if (update.rowCount === 0) {
-          throw new Error('Cluster not found')
+          throw new Error("Cluster not found");
         }
 
         await client.query(
@@ -142,22 +143,25 @@ export class ClustersService {
                 AND excluded_at IS NULL
             )
           `,
-          [id]
-        )
+          [id],
+        );
 
-        await client.query('COMMIT')
+        await client.query("COMMIT");
       } catch (error) {
-        await client.query('ROLLBACK')
-        throw error
+        await client.query("ROLLBACK");
+        throw error;
       }
-    })
+    });
 
-    return this.getCluster(id)
+    return this.getCluster(id);
   }
 
-  async removeClusterMessage(clusterId: string, messageId: string): Promise<Cluster> {
+  async removeClusterMessage(
+    clusterId: string,
+    messageId: string,
+  ): Promise<Cluster> {
     await this.db.withClient(async (client) => {
-      await client.query('BEGIN')
+      await client.query("BEGIN");
       try {
         const update = await client.query(
           `
@@ -167,11 +171,11 @@ export class ClustersService {
               AND message_id = $2
               AND excluded_at IS NULL
           `,
-          [clusterId, messageId]
-        )
+          [clusterId, messageId],
+        );
 
         if (update.rowCount === 0) {
-          throw new Error('Message not found in cluster')
+          throw new Error("Message not found in cluster");
         }
 
         await client.query(
@@ -180,17 +184,17 @@ export class ClustersService {
             SET updated_at = now()
             WHERE id = $1
           `,
-          [clusterId]
-        )
+          [clusterId],
+        );
 
-        await client.query('COMMIT')
+        await client.query("COMMIT");
       } catch (error) {
-        await client.query('ROLLBACK')
-        throw error
+        await client.query("ROLLBACK");
+        throw error;
       }
-    })
+    });
 
-    return this.getCluster(clusterId)
+    return this.getCluster(clusterId);
   }
 
   private mapClusterRow(row: ClusterRow): Cluster {
@@ -202,8 +206,8 @@ export class ClustersService {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       messageCount: row.message_count,
-      messages: undefined
-    }
+      messages: undefined,
+    };
   }
 
   private mapMessageRow(row: MessageRow): Message {
@@ -216,11 +220,9 @@ export class ClustersService {
       visitorUserId: row.visitor_user_id || undefined,
       visitorUsername: row.visitor_username || undefined,
       text: row.text,
-      html: row.html || undefined,
-      messageType: row.message_type || undefined,
       createdAt: row.created_at,
       repliedAt: row.replied_at || undefined,
-      isPaidDm: row.is_paid_dm
-    }
+      isPaidDm: row.is_paid_dm,
+    };
   }
 }
