@@ -81,6 +81,7 @@ export default function SeedButton() {
   const handleSeed = async () => {
     setIsSeeding(true);
     console.log("Starting seed...");
+    const seedId = Date.now(); // Unique per seed run
     try {
       for (let i = 0; i < SEED_MESSAGES.length; i++) {
         const msg = SEED_MESSAGES[i];
@@ -88,10 +89,10 @@ export default function SeedButton() {
           variables: {
             input: {
               creatorId: CREATOR_ID,
-              messageId: `seed-msg-${Date.now()}-${i}`,
+              messageId: `seed-msg-${seedId}-${i}`,
               text: msg.text,
-              channelId: `channel-${msg.userId}`,
-              channelCid: `messaging:channel-${msg.userId}`,
+              channelId: `channel-${msg.userId}-${seedId}`, // Unique per seed run
+              channelCid: `messaging:channel-${msg.userId}-${seedId}`,
               visitorUserId: msg.userId,
               visitorUsername: msg.username,
               createdAt: new Date().toISOString(),

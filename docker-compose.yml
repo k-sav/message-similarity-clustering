@@ -1,7 +1,10 @@
 version: "3.9"
 
+name: message-similarity-clustering
+
 services:
   api:
+    container_name: message-similarity-clustering-api
     build: .
     ports:
       - "3000:3000"
@@ -24,6 +27,7 @@ services:
         condition: service_started
 
   postgres:
+    container_name: message-similarity-clustering-postgres
     image: pgvector/pgvector:pg16
     ports:
       - "5432:5432"
@@ -41,11 +45,13 @@ services:
       retries: 10
 
   redis:
+    container_name: message-similarity-clustering-redis
     image: redis:7-alpine
     ports:
       - "6379:6379"
 
   frontend:
+    container_name: message-similarity-clustering-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
