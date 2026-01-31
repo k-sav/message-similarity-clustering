@@ -9,32 +9,9 @@ import { IngestResult } from "./ingest-result.model";
 const SIMILARITY_THRESHOLD = 0.9; // Vector cosine similarity (semantic matching)
 const TRIGRAM_THRESHOLD = 0.85; // pg_trgm similarity (near-exact text matching)
 
-// Messages that don't need a response - skip ingest entirely
-const NO_RESPONSE_PATTERNS = [
-  /^(hi|hello|hey|hiya|howdy|yo)!*\.?$/i, // standalone greetings
-  /^(thanks|thank you|thx|ty|tysm)!*\.?$/i,
-  /^(ok|okay|k|kk|got it|sounds good|perfect|great|awesome|cool|nice)!*\.?$/i,
-  /^(yes|no|yep|nope|yea|yeah|nah)!*\.?$/i,
-  /^[\p{Emoji}\s]+$/u, // emoji-only messages
-];
-
-const MIN_RESPONSE_LENGTH = 5; // Single word acks like "ok" are too short
-
-function needsResponse(text: string): boolean {
-  const trimmed = text.trim();
-
-  // Too short - likely an acknowledgment
-  if (trimmed.length < MIN_RESPONSE_LENGTH) {
-    return false;
-  }
-
-  // Matches known "no response needed" patterns
-  if (NO_RESPONSE_PATTERNS.some((p) => p.test(trimmed))) {
-    return false;
-  }
-
-  return true;
-}
+// NOTE: In production, integrate with StreamChatTaggingProcessor in ltfollowers
+// Use its `needs_reply` classification to gate ingest (skip greetings, acks, etc.)
+// This avoids duplicating heuristics/LLM calls
 
 type MatchRow = {
   id: string;
@@ -57,14 +34,6 @@ export class MessagesService {
   ) {}
 
   async ingestMessage(input: IngestMessageInput): Promise<IngestResult> {
-    // Early exit for messages that don't need a response
-    if (!needsResponse(input.text)) {
-      return {
-        skipped: true,
-        skipReason: "no_response_needed",
-      };
-    }
-
     const isPaidDm = input.isPaidDm === true;
     const createdAt = input.createdAt || new Date();
 
@@ -248,7 +217,6 @@ export class MessagesService {
 
         await client.query("COMMIT");
         return {
-          skipped: false,
           messageId,
           clusterId: clusterId!, // Always assigned by Step 5
           matchedMessageId,

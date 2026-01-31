@@ -11,10 +11,10 @@
   - Only skips embedding when joining a cluster that has other embedded messages
   - `embedding` column is now nullable
   - TODO: Move thresholds to feature flag system for production
-- **No-response filter**: Messages that don't need a response are rejected at ingest
-  - "thanks", "ok", "👍", short acks → not stored, not embedded
-  - Returns `{ skipped: true, skipReason: "no_response_needed" }`
-  - Saves storage, embedding costs, and cluster noise
+- **No-response filter**: Removed from POC
+  - In production, integrate with `StreamChatTaggingProcessor` in ltfollowers
+  - Use its `needs_reply` classification to gate ingest
+  - Avoids duplicating heuristics/LLM calls
 - No handling for: external replies, superseded messages, deleted users/messages
 
 ---
