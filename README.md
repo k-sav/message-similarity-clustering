@@ -69,8 +69,12 @@ Result: Cluster A has 2 messages (Jane's latest + Bob's message)
 
 ### Clustering Thresholds
 
-- **Vector similarity**: 70% (semantic matching via OpenAI embeddings)
-- **Trigram similarity**: 85% (near-exact text matching via PostgreSQL)
+Two thresholds control clustering precision (configured in `src/modules/messages/messages.service.ts`):
+
+- **Vector similarity**: Semantic matching via OpenAI embeddings
+- **Trigram similarity**: Near-exact text matching via PostgreSQL
+
+Higher thresholds = more conservative clustering. See [Getting Started](docs/getting-started.md#similarity-thresholds) for tuning guidance.
 
 **Note:** 70% is conservative to reduce false positives. "How much do you charge?" and "When are you available?" won't cluster together at 70%.
 
