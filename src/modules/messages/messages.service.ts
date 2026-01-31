@@ -11,6 +11,7 @@ const TRIGRAM_THRESHOLD = 0.85; // pg_trgm similarity (near-exact text matching)
 
 // Messages that don't need a response - skip ingest entirely
 const NO_RESPONSE_PATTERNS = [
+  /^(hi|hello|hey|hiya|howdy|yo)!*\.?$/i, // standalone greetings
   /^(thanks|thank you|thx|ty|tysm)!*\.?$/i,
   /^(ok|okay|k|kk|got it|sounds good|perfect|great|awesome|cool|nice)!*\.?$/i,
   /^(yes|no|yep|nope|yea|yeah|nah)!*\.?$/i,
