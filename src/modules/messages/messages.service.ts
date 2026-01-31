@@ -58,13 +58,13 @@ export class MessagesService {
                   SELECT 1 FROM cluster_messages cm2
                   JOIN messages m2 ON m2.id = cm2.message_id
                   WHERE cm2.cluster_id = cm.cluster_id
-                    AND cm2.excluded_at IS NULL
+                    AND cm2.status = 'active'
                     AND m2.embedding IS NOT NULL
                     AND m2.id <> m.id
                 ) AS cluster_has_embeddings
               FROM messages m
               LEFT JOIN cluster_messages cm
-                ON cm.message_id = m.id AND cm.excluded_at IS NULL
+                ON cm.message_id = m.id AND cm.status = 'active'
               LEFT JOIN clusters c
                 ON c.id = cm.cluster_id
               WHERE m.creator_id = $2
@@ -138,6 +138,21 @@ export class MessagesService {
 
         const messageId = insert.rows[0].id;
 
+        // Step 3.5: Auto-supersede old messages from same channel (one msg per channel rule)
+        await client.query(
+          `
+            UPDATE cluster_messages cm
+            SET status = 'superseded'
+            FROM messages m
+            WHERE cm.message_id = m.id
+              AND m.channel_id = $1
+              AND m.creator_id = $2
+              AND m.id <> $3
+              AND cm.status = 'active'
+          `,
+          [input.channelId, input.creatorId, messageId],
+        );
+
         // Step 4: If we didn't find a cluster via trigram, try vector similarity
         if (!clusterId && !isPaidDm && embeddingLiteral) {
           const match = await client.query<MatchRow>(
@@ -148,7 +163,7 @@ export class MessagesService {
                 (1 - (m.embedding <=> $1)) AS similarity
               FROM messages m
               LEFT JOIN cluster_messages cm
-                ON cm.message_id = m.id AND cm.excluded_at IS NULL
+                ON cm.message_id = m.id AND cm.status = 'active'
               LEFT JOIN clusters c
                 ON c.id = cm.cluster_id
               WHERE m.creator_id = $2

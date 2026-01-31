@@ -25,6 +25,19 @@ export class Cluster {
   @Field(() => Int)
   messageCount!: number
 
+  // UI list fields
+  @Field(() => Int)
+  channelCount!: number
+
+  @Field({ nullable: true })
+  previewText?: string
+
+  @Field({ nullable: true })
+  representativeVisitor?: string
+
+  @Field(() => Int)
+  additionalVisitorCount!: number
+
   @Field(() => [Message], { nullable: true })
   messages?: Message[]
 }

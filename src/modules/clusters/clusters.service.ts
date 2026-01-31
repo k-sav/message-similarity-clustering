@@ -12,6 +12,10 @@ type ClusterRow = {
   created_at: Date;
   updated_at: Date;
   message_count: number;
+  channel_count: number;
+  preview_text: string | null;
+  representative_visitor: string | null;
+  additional_visitor_count: number;
 };
 
 type MessageRow = {
@@ -53,10 +57,30 @@ export class ClustersService {
           c.response_text,
           c.created_at,
           c.updated_at,
-          COUNT(cm.message_id)::int AS message_count
+          COUNT(cm.message_id)::int AS message_count,
+          COUNT(DISTINCT m.channel_id)::int AS channel_count,
+          (
+            SELECT m2.text
+            FROM cluster_messages cm2
+            JOIN messages m2 ON m2.id = cm2.message_id
+            WHERE cm2.cluster_id = c.id AND cm2.status = 'active'
+            ORDER BY m2.created_at ASC
+            LIMIT 1
+          ) AS preview_text,
+          (
+            SELECT m2.visitor_username
+            FROM cluster_messages cm2
+            JOIN messages m2 ON m2.id = cm2.message_id
+            WHERE cm2.cluster_id = c.id AND cm2.status = 'active'
+            ORDER BY m2.created_at ASC
+            LIMIT 1
+          ) AS representative_visitor,
+          (COUNT(DISTINCT m.visitor_user_id)::int - 1) AS additional_visitor_count
         FROM clusters c
         LEFT JOIN cluster_messages cm
-          ON cm.cluster_id = c.id AND cm.excluded_at IS NULL
+          ON cm.cluster_id = c.id AND cm.status = 'active'
+        LEFT JOIN messages m
+          ON m.id = cm.message_id
         WHERE c.creator_id = $1
         ${statusFilter}
         GROUP BY c.id
@@ -78,10 +102,30 @@ export class ClustersService {
           c.response_text,
           c.created_at,
           c.updated_at,
-          COUNT(cm.message_id)::int AS message_count
+          COUNT(cm.message_id)::int AS message_count,
+          COUNT(DISTINCT m.channel_id)::int AS channel_count,
+          (
+            SELECT m2.text
+            FROM cluster_messages cm2
+            JOIN messages m2 ON m2.id = cm2.message_id
+            WHERE cm2.cluster_id = c.id AND cm2.status = 'active'
+            ORDER BY m2.created_at ASC
+            LIMIT 1
+          ) AS preview_text,
+          (
+            SELECT m2.visitor_username
+            FROM cluster_messages cm2
+            JOIN messages m2 ON m2.id = cm2.message_id
+            WHERE cm2.cluster_id = c.id AND cm2.status = 'active'
+            ORDER BY m2.created_at ASC
+            LIMIT 1
+          ) AS representative_visitor,
+          (COUNT(DISTINCT m.visitor_user_id)::int - 1) AS additional_visitor_count
         FROM clusters c
         LEFT JOIN cluster_messages cm
-          ON cm.cluster_id = c.id AND cm.excluded_at IS NULL
+          ON cm.cluster_id = c.id AND cm.status = 'active'
+        LEFT JOIN messages m
+          ON m.id = cm.message_id
         WHERE c.id = $1
         GROUP BY c.id
       `,
@@ -105,7 +149,7 @@ export class ClustersService {
         INNER JOIN cluster_messages cm
           ON cm.message_id = m.id
         WHERE cm.cluster_id = $1
-          AND cm.excluded_at IS NULL
+          AND cm.status = 'active'
         ORDER BY m.created_at ASC
       `,
       [clusterId],
@@ -133,6 +177,7 @@ export class ClustersService {
           throw new Error("Cluster not found");
         }
 
+        // Mark messages as replied
         await client.query(
           `
             UPDATE messages
@@ -141,8 +186,19 @@ export class ClustersService {
               SELECT message_id
               FROM cluster_messages
               WHERE cluster_id = $1
-                AND excluded_at IS NULL
+                AND status = 'active'
             )
+          `,
+          [id],
+        );
+
+        // Update cluster_messages status to actioned
+        await client.query(
+          `
+            UPDATE cluster_messages
+            SET status = 'actioned'
+            WHERE cluster_id = $1
+              AND status = 'active'
           `,
           [id],
         );
@@ -167,10 +223,10 @@ export class ClustersService {
         const update = await client.query(
           `
             UPDATE cluster_messages
-            SET excluded_at = now()
+            SET status = 'removed'
             WHERE cluster_id = $1
               AND message_id = $2
-              AND excluded_at IS NULL
+              AND status = 'active'
           `,
           [clusterId, messageId],
         );
@@ -207,6 +263,10 @@ export class ClustersService {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       messageCount: row.message_count,
+      channelCount: row.channel_count || 0,
+      previewText: row.preview_text || undefined,
+      representativeVisitor: row.representative_visitor || undefined,
+      additionalVisitorCount: Math.max(0, row.additional_visitor_count || 0),
       messages: undefined,
     };
   }
