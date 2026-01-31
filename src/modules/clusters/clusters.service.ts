@@ -66,6 +66,8 @@ export class ClustersService {
           c.created_at,
           c.updated_at,
           COUNT(DISTINCT m.channel_id)::int AS channel_count,
+          -- TODO: Consider LLM-generated summary instead of earliest message text
+          -- Could provide more representative preview (e.g., "3 people asking about pricing")
           (
             SELECT m2.text
             FROM cluster_messages cm2
@@ -118,6 +120,8 @@ export class ClustersService {
           c.created_at,
           c.updated_at,
           COUNT(DISTINCT m.channel_id)::int AS channel_count,
+          -- TODO: Consider LLM-generated summary instead of earliest message text
+          -- Could provide more representative preview (e.g., "3 people asking about pricing")
           (
             SELECT m2.text
             FROM cluster_messages cm2

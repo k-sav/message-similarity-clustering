@@ -2,7 +2,164 @@
 
 Quick wins to increase adoption and value from message similarity clustering.
 
-## 1. Smart Response Suggestions
+## 1. LLM-Generated Cluster Summaries
+
+**Goal:** Replace basic preview text (earliest message) with AI-generated summaries that better represent cluster intent.
+
+### Current State
+
+```typescript
+// Currently using earliest message as preview
+SELECT m2.text FROM cluster_messages cm2
+JOIN messages m2 ON m2.id = cm2.message_id
+WHERE cm2.cluster_id = c.id
+ORDER BY m2.created_at ASC
+LIMIT 1
+```
+
+**Problems:**
+
+- First message may not be representative of cluster theme
+- Doesn't convey quantity ("3 people asking...")
+- Less useful for UI previews
+
+### Architecture
+
+**Approach: Generation at cluster creation/update time** (not query time)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ clusters table (add column)                                  │
+├─────────────────────────────────────────────────────────────┤
+│ + summary_text: text (nullable)                              │
+│   e.g. "3 people asking about collaboration pricing"        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Why creation time?**
+
+- ✅ One-time LLM cost per cluster (~$0.0001)
+- ✅ Fast queries (no latency)
+- ✅ Cost-effective for frequently viewed clusters
+- ❌ Needs regeneration when cluster changes
+
+### Implementation Plan
+
+**Phase 1: Add Summary Column**
+
+```sql
+ALTER TABLE clusters ADD COLUMN summary_text TEXT;
+```
+
+**Phase 2: Generate Summary on Cluster Events**
+
+```typescript
+async function generateClusterSummary(clusterId: string): Promise<string> {
+  // Get sample messages from cluster (max 5 for context)
+  const messages = await db.query(
+    `
+    SELECT m.text 
+    FROM cluster_messages cm
+    JOIN messages m ON m.id = cm.message_id
+    WHERE cm.cluster_id = $1
+    ORDER BY m.created_at ASC
+    LIMIT 5
+  `,
+    [clusterId],
+  );
+
+  const channelCount = await getClusterChannelCount(clusterId);
+  const messageTexts = messages.rows.map((r) => r.text).join("\n");
+
+  const prompt = `Summarize this group of ${channelCount} similar customer messages in 5-8 words. Focus on the core question/intent.
+
+Messages:
+${messageTexts}
+
+Example summaries:
+- "3 people asking about collaboration pricing"
+- "5 people requesting availability for next month"
+- "4 people reporting broken download links"
+
+Summary:`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.3,
+    max_tokens: 20,
+  });
+
+  return response.choices[0].message.content?.trim() || null;
+}
+
+// Call during cluster lifecycle events
+async function onClusterCreated(clusterId: string) {
+  const summary = await generateClusterSummary(clusterId);
+  await db.query(`UPDATE clusters SET summary_text = $1 WHERE id = $2`, [
+    summary,
+    clusterId,
+  ]);
+}
+
+async function onMessageAddedToCluster(clusterId: string) {
+  // Regenerate summary when cluster grows
+  const summary = await generateClusterSummary(clusterId);
+  await db.query(`UPDATE clusters SET summary_text = $1 WHERE id = $2`, [
+    summary,
+    clusterId,
+  ]);
+}
+```
+
+**Phase 3: Update GraphQL Schema**
+
+```graphql
+type Cluster {
+  id: ID!
+  status: ClusterStatus!
+  channelCount: Int!
+  previewText: String # Fallback: earliest message
+  summaryText: String # AI-generated summary
+  # Use summaryText in UI if available, else previewText
+}
+```
+
+**Phase 4: Query Updates**
+
+```typescript
+// In listClusters/getCluster, add summary_text to SELECT
+SELECT
+  c.summary_text,
+  c.preview_text,  -- Keep as fallback
+  ...
+```
+
+### Cost Analysis
+
+- **Per cluster:** 1 LLM call (~$0.0001 with gpt-4o-mini)
+- **Regeneration:** Only when messages added/removed
+- **Typical creator:** 10 clusters/day × $0.0001 = $0.001/day
+- **Monthly (per creator):** ~$0.03/month
+
+**ROI:** Better UX, clearer intent, minimal cost.
+
+### Success Metrics
+
+- % of clusters with AI summary vs fallback
+- Time to understand cluster intent (user testing)
+- Creator satisfaction with preview text
+
+### Feature Flag
+
+```typescript
+FEATURE_FLAG: 'cluster_ai_summaries'
+Rollout: 10% → 50% → 100% over 2 weeks
+```
+
+---
+
+## 2. Smart Response Suggestions
 
 **Goal:** Pre-fill the bulk reply input with suggested responses based on creator's past replies to similar questions.
 
@@ -102,7 +259,7 @@ useEffect(() => {
 
 ---
 
-## 2. Common Questions Analytics
+## 3. Common Questions Analytics
 
 **Goal:** Show creators their most frequently asked questions to help them create FAQs or update their link-in-bio.
 
@@ -235,7 +392,7 @@ query GetQuestionAnalytics($creatorId: ID!, $days: Int = 30) {
 
 ---
 
-## 3. Auto-Archive Stale Clusters
+## 4. Auto-Archive Stale Clusters
 
 **Goal:** Automatically archive clusters that haven't been actioned after 7 days to keep the inbox clean.
 
