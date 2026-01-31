@@ -65,7 +65,7 @@ export class ClustersService {
       params,
     );
 
-    return result.rows.map((row) => this.mapClusterRow(row));
+    return result.rows.map((row: ClusterRow) => this.mapClusterRow(row));
   }
 
   async getCluster(id: string): Promise<Cluster> {
@@ -111,7 +111,7 @@ export class ClustersService {
       [clusterId],
     );
 
-    return messages.rows.map((row) => this.mapMessageRow(row));
+    return messages.rows.map((row: MessageRow) => this.mapMessageRow(row));
   }
 
   async actionCluster(id: string, responseText: string): Promise<Cluster> {
