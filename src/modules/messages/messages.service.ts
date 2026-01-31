@@ -6,7 +6,7 @@ import { IngestMessageInput } from "./ingest-message.input";
 import { IngestResult } from "./ingest-result.model";
 
 // TODO: Move to feature flag system for controlled rollout in production
-const SIMILARITY_THRESHOLD = 0.4; // Vector cosine similarity (semantic matching) - lowered for demo
+const SIMILARITY_THRESHOLD = 0.7; // Vector cosine similarity - raised for better precision
 const TRIGRAM_THRESHOLD = 0.85; // pg_trgm similarity (near-exact text matching)
 
 // NOTE: In production, integrate with StreamChatTaggingProcessor in ltfollowers

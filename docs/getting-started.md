@@ -107,15 +107,15 @@ Click **"Seed Test Data"** to generate sample clusters.
 Configured in `src/modules/messages/messages.service.ts`:
 
 ```typescript
-const SIMILARITY_THRESHOLD = 0.4; // 40% semantic similarity
+const SIMILARITY_THRESHOLD = 0.7; // 70% semantic similarity
 const TRIGRAM_THRESHOLD = 0.85; // 85% text similarity
 ```
 
 **Tuning guidance:**
 
-- **Higher threshold** (0.6-0.9): More precise clusters, fewer false positives, might miss valid matches
-- **Lower threshold** (0.3-0.5): More inclusive clusters, higher recall, more false positives
-- **Production recommendation**: Start at 0.6, A/B test and tune based on creator feedback
+- **Higher threshold** (0.7-0.9): More precise clusters, fewer false positives (recommended)
+- **Lower threshold** (0.4-0.6): More inclusive clusters, higher recall, more false positives
+- **Current setting**: 0.7 for better precision (pricing questions don't cluster with availability questions)
 
 ### Embedding Providers
 

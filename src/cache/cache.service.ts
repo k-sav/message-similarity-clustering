@@ -9,7 +9,7 @@ import { createClient, RedisClientType } from "redis";
 
 @Injectable()
 export class CacheService implements OnModuleInit, OnModuleDestroy {
-  private client: RedisClientType;
+  private client: RedisClientType | null = null;
   private readonly logger = new Logger(CacheService.name);
   private isConnected = false;
 
@@ -43,13 +43,13 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    if (this.client) {
+    if (this.client && this.isConnected) {
       await this.client.quit();
     }
   }
 
   async get(key: string): Promise<string | null> {
-    if (!this.isConnected) return null;
+    if (!this.isConnected || !this.client) return null;
 
     try {
       return await this.client.get(key);
@@ -60,7 +60,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
-    if (!this.isConnected) return;
+    if (!this.isConnected || !this.client) return;
 
     try {
       if (ttlSeconds) {
@@ -74,7 +74,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   async del(key: string): Promise<void> {
-    if (!this.isConnected) return;
+    if (!this.isConnected || !this.client) return;
 
     try {
       await this.client.del(key);

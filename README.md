@@ -69,10 +69,10 @@ Result: Cluster A has 2 messages (Jane's latest + Bob's message)
 
 ### Clustering Thresholds
 
-- **Vector similarity**: 40% (semantic matching via OpenAI embeddings)
+- **Vector similarity**: 70% (semantic matching via OpenAI embeddings)
 - **Trigram similarity**: 85% (near-exact text matching via PostgreSQL)
 
-**Note:** These are POC values optimized for demo. Production should start at 60% and tune based on feedback.
+**Note:** 70% is conservative to reduce false positives. "How much do you charge?" and "When are you available?" won't cluster together at 70%.
 
 ## Documentation
 

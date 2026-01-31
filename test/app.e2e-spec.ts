@@ -1,14 +1,14 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { DbService } from '../src/db/db.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { INestApplication, ValidationPipe } from "@nestjs/common";
+import request from "supertest";
+import { AppModule } from "../src/app.module";
+import { DbService } from "../src/db/db.service";
 
-describe('Similarity Buckets E2E', () => {
+describe("Similarity Buckets E2E", () => {
   let app: INestApplication;
   let dbService: DbService;
 
-  const CREATOR_ID = '00000000-0000-4000-a000-000000000001';
+  const CREATOR_ID = "00000000-0000-4000-a000-000000000001";
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -28,23 +28,19 @@ describe('Similarity Buckets E2E', () => {
 
   beforeEach(async () => {
     // Clean up test data before each test
-    await dbService.query(
-      `DELETE FROM clusters WHERE creator_id = $1`,
-      [CREATOR_ID],
-    );
-    await dbService.query(
-      `DELETE FROM messages WHERE creator_id = $1`,
-      [CREATOR_ID],
-    );
+    await dbService.query(`DELETE FROM clusters WHERE creator_id = $1`, [
+      CREATOR_ID,
+    ]);
+    await dbService.query(`DELETE FROM messages WHERE creator_id = $1`, [
+      CREATOR_ID,
+    ]);
   });
 
   const gql = (query: string, variables?: Record<string, unknown>) =>
-    request(app.getHttpServer())
-      .post('/graphql')
-      .send({ query, variables });
+    request(app.getHttpServer()).post("/graphql").send({ query, variables });
 
-  describe('Message Ingestion', () => {
-    it('should create a new cluster for first message', async () => {
+  describe("Message Ingestion", () => {
+    it("should create a new cluster for first message", async () => {
       const res = await gql(
         `mutation Ingest($input: IngestMessageInput!) {
           ingestMessage(input: $input) {
@@ -57,19 +53,19 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-1',
-            text: 'How much do you charge for a collaboration?',
-            channelId: 'channel-1',
-            channelCid: 'messaging:channel-1',
-            visitorUserId: 'visitor-1',
-            visitorUsername: 'Jane Ray',
+            messageId: "ext-msg-1",
+            text: "How much do you charge for a collaboration?",
+            channelId: "channel-1",
+            channelCid: "messaging:channel-1",
+            visitorUserId: "visitor-1",
+            visitorUsername: "Jane Ray",
             createdAt: new Date().toISOString(),
             isPaidDm: false,
             rawPayload: {
               user: {
-                id: 'visitor-1',
-                name: 'Jane Ray',
-                image: 'https://example.com/jane.jpg',
+                id: "visitor-1",
+                name: "Jane Ray",
+                image: "https://example.com/jane.jpg",
               },
             },
           },
@@ -84,7 +80,7 @@ describe('Similarity Buckets E2E', () => {
       expect(res.body.data.ingestMessage.similarity).toBeNull();
     });
 
-    it('should match similar messages to same cluster (trigram match)', async () => {
+    it("should match similar messages to same cluster (trigram match)", async () => {
       // First message
       const first = await gql(
         `mutation Ingest($input: IngestMessageInput!) {
@@ -93,13 +89,13 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-1',
-            text: 'How much do you charge for a collaboration?',
-            channelId: 'channel-1',
-            visitorUserId: 'visitor-1',
-            visitorUsername: 'Jane Ray',
+            messageId: "ext-msg-1",
+            text: "How much do you charge for a collaboration?",
+            channelId: "channel-1",
+            visitorUserId: "visitor-1",
+            visitorUsername: "Jane Ray",
             createdAt: new Date().toISOString(),
-            rawPayload: { user: { image: 'https://example.com/jane.jpg' } },
+            rawPayload: { user: { image: "https://example.com/jane.jpg" } },
           },
         },
       );
@@ -114,13 +110,13 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-2',
-            text: 'How much do you charge for a collaboration?', // Same text = trigram match
-            channelId: 'channel-2',
-            visitorUserId: 'visitor-2',
-            visitorUsername: 'Bob Smith',
+            messageId: "ext-msg-2",
+            text: "How much do you charge for a collaboration?", // Same text = trigram match
+            channelId: "channel-2",
+            visitorUserId: "visitor-2",
+            visitorUsername: "Bob Smith",
             createdAt: new Date().toISOString(),
-            rawPayload: { user: { image: 'https://example.com/bob.jpg' } },
+            rawPayload: { user: { image: "https://example.com/bob.jpg" } },
           },
         },
       );
@@ -131,7 +127,7 @@ describe('Similarity Buckets E2E', () => {
       expect(second.body.data.ingestMessage.similarity).toBeGreaterThan(0.85);
     });
 
-    it('should supersede old message from same channel within a cluster', async () => {
+    it("should supersede old message from same channel within a cluster", async () => {
       // First message
       const first = await gql(
         `mutation Ingest($input: IngestMessageInput!) {
@@ -140,11 +136,11 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-1',
-            text: 'How much do you charge for collaborations?',
-            channelId: 'channel-1',
-            visitorUserId: 'visitor-1',
-            visitorUsername: 'Jane',
+            messageId: "ext-msg-1",
+            text: "How much do you charge for collaborations?",
+            channelId: "channel-1",
+            visitorUserId: "visitor-1",
+            visitorUsername: "Jane",
             createdAt: new Date().toISOString(),
           },
         },
@@ -159,11 +155,11 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-2',
-            text: 'How much do you charge for collaborations?',
-            channelId: 'channel-2',
-            visitorUserId: 'visitor-2',
-            visitorUsername: 'Bob',
+            messageId: "ext-msg-2",
+            text: "How much do you charge for collaborations?",
+            channelId: "channel-2",
+            visitorUserId: "visitor-2",
+            visitorUsername: "Bob",
             createdAt: new Date().toISOString(),
           },
         },
@@ -177,11 +173,11 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-3',
-            text: 'How much do you charge for collaborations?', // Same text to join same cluster
-            channelId: 'channel-1', // Same channel as first message
-            visitorUserId: 'visitor-1',
-            visitorUsername: 'Jane',
+            messageId: "ext-msg-3",
+            text: "How much do you charge for collaborations?", // Same text to join same cluster
+            channelId: "channel-1", // Same channel as first message
+            visitorUserId: "visitor-1",
+            visitorUsername: "Jane",
             createdAt: new Date().toISOString(),
           },
         },
@@ -205,12 +201,12 @@ describe('Similarity Buckets E2E', () => {
       const channelIds = detail.body.data.cluster.messages.map(
         (m: { channelId: string }) => m.channelId,
       );
-      expect(channelIds).toContain('channel-1');
-      expect(channelIds).toContain('channel-2');
+      expect(channelIds).toContain("channel-1");
+      expect(channelIds).toContain("channel-2");
     });
   });
 
-  describe('Cluster Queries', () => {
+  describe("Cluster Queries", () => {
     let clusterId: string;
 
     beforeEach(async () => {
@@ -222,13 +218,13 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-1',
-            text: 'What is your collaboration rate?',
-            channelId: 'channel-1',
-            visitorUserId: 'visitor-1',
-            visitorUsername: 'Jane Ray',
+            messageId: "ext-msg-1",
+            text: "What is your collaboration rate?",
+            channelId: "channel-1",
+            visitorUserId: "visitor-1",
+            visitorUsername: "Jane Ray",
             createdAt: new Date().toISOString(),
-            rawPayload: { user: { image: 'https://example.com/jane.jpg' } },
+            rawPayload: { user: { image: "https://example.com/jane.jpg" } },
           },
         },
       );
@@ -241,19 +237,19 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-2',
-            text: 'What is your collaboration rate?', // Same text for trigram match
-            channelId: 'channel-2',
-            visitorUserId: 'visitor-2',
-            visitorUsername: 'Bob Smith',
+            messageId: "ext-msg-2",
+            text: "What is your collaboration rate?", // Same text for trigram match
+            channelId: "channel-2",
+            visitorUserId: "visitor-2",
+            visitorUsername: "Bob Smith",
             createdAt: new Date().toISOString(),
-            rawPayload: { user: { image: 'https://example.com/bob.jpg' } },
+            rawPayload: { user: { image: "https://example.com/bob.jpg" } },
           },
         },
       );
     });
 
-    it('should list clusters with UI fields', async () => {
+    it("should list clusters with UI fields", async () => {
       const res = await gql(
         `query ListClusters($creatorId: ID!) {
           clusters(creatorId: $creatorId) {
@@ -274,16 +270,20 @@ describe('Similarity Buckets E2E', () => {
       expect(res.body.data.clusters.length).toBe(1);
 
       const cluster = res.body.data.clusters[0];
-      expect(cluster.status).toBe('Open');
+      expect(cluster.status).toBe("Open");
       expect(cluster.channelCount).toBe(2);
-      expect(cluster.previewText).toContain('collaboration');
-      expect(cluster.representativeVisitor).toBe('Jane Ray');
+      expect(cluster.previewText).toContain("collaboration");
+      expect(cluster.representativeVisitor).toBe("Jane Ray");
       expect(cluster.additionalVisitorCount).toBe(1);
-      expect(cluster.visitorAvatarUrls).toContain('https://example.com/jane.jpg');
-      expect(cluster.visitorAvatarUrls).toContain('https://example.com/bob.jpg');
+      expect(cluster.visitorAvatarUrls).toContain(
+        "https://example.com/jane.jpg",
+      );
+      expect(cluster.visitorAvatarUrls).toContain(
+        "https://example.com/bob.jpg",
+      );
     });
 
-    it('should filter clusters by minChannelCount', async () => {
+    it("should filter clusters by minChannelCount", async () => {
       // This cluster has 2 channels
       const with2 = await gql(
         `query ListClusters($creatorId: ID!, $minChannelCount: Float) {
@@ -311,7 +311,7 @@ describe('Similarity Buckets E2E', () => {
       expect(with3.body.data.clusters.length).toBe(0);
     });
 
-    it('should get cluster detail with messages', async () => {
+    it("should get cluster detail with messages", async () => {
       const res = await gql(
         `query ClusterDetail($clusterId: ID!) {
           cluster(id: $clusterId) {
@@ -334,14 +334,14 @@ describe('Similarity Buckets E2E', () => {
       expect(res.body.data.cluster.messages.length).toBe(2);
 
       const jane = res.body.data.cluster.messages.find(
-        (m: { visitorUsername: string }) => m.visitorUsername === 'Jane Ray',
+        (m: { visitorUsername: string }) => m.visitorUsername === "Jane Ray",
       );
       expect(jane).toBeDefined();
-      expect(jane.visitorAvatarUrl).toBe('https://example.com/jane.jpg');
+      expect(jane.visitorAvatarUrl).toBe("https://example.com/jane.jpg");
     });
   });
 
-  describe('Cluster Mutations', () => {
+  describe("Cluster Mutations", () => {
     let clusterId: string;
     let messageId1: string;
     let messageId2: string;
@@ -354,11 +354,11 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-1',
-            text: 'What is your collaboration rate?',
-            channelId: 'channel-1',
-            visitorUserId: 'visitor-1',
-            visitorUsername: 'Jane',
+            messageId: "ext-msg-1",
+            text: "What is your collaboration rate?",
+            channelId: "channel-1",
+            visitorUserId: "visitor-1",
+            visitorUsername: "Jane",
             createdAt: new Date().toISOString(),
           },
         },
@@ -373,11 +373,11 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-2',
-            text: 'What is your collaboration rate?', // Same text for trigram match
-            channelId: 'channel-2',
-            visitorUserId: 'visitor-2',
-            visitorUsername: 'Bob',
+            messageId: "ext-msg-2",
+            text: "What is your collaboration rate?", // Same text for trigram match
+            channelId: "channel-2",
+            visitorUserId: "visitor-2",
+            visitorUsername: "Bob",
             createdAt: new Date().toISOString(),
           },
         },
@@ -385,7 +385,7 @@ describe('Similarity Buckets E2E', () => {
       messageId2 = second.body.data.ingestMessage.messageId;
     });
 
-    it('should remove message from cluster', async () => {
+    it("should remove message from cluster", async () => {
       const res = await gql(
         `mutation RemoveMessage($clusterId: ID!, $messageId: ID!) {
           removeClusterMessage(clusterId: $clusterId, messageId: $messageId) {
@@ -400,7 +400,7 @@ describe('Similarity Buckets E2E', () => {
       expect(res.body.data.removeClusterMessage.channelCount).toBe(1);
     });
 
-    it('should auto-delete cluster when last message removed', async () => {
+    it("should auto-delete cluster when last message removed", async () => {
       // Remove first message
       await gql(
         `mutation RemoveMessage($clusterId: ID!, $messageId: ID!) {
@@ -435,25 +435,41 @@ describe('Similarity Buckets E2E', () => {
       expect(list.body.data.clusters.length).toBe(0);
     });
 
-    it('should action cluster and set status', async () => {
+    it("should action cluster and set status", async () => {
+      // First get the channel IDs from the cluster
+      const clusterDetail = await gql(
+        `query ClusterDetail($clusterId: ID!) {
+          cluster(id: $clusterId) { messages { channelId } }
+        }`,
+        { clusterId },
+      );
+      const channelIds = clusterDetail.body.data.cluster.messages.map(
+        (m: { channelId: string }) => m.channelId,
+      );
+
       const res = await gql(
-        `mutation Action($clusterId: ID!, $response: String!) {
-          actionCluster(id: $clusterId, responseText: $response) {
+        `mutation Action($clusterId: ID!, $response: String!, $channelIds: [String!]!) {
+          actionCluster(id: $clusterId, responseText: $response, channelIds: $channelIds) {
             id
             status
             responseText
           }
         }`,
-        { clusterId, response: 'Thanks for reaching out! My rate is $500.' },
+        {
+          clusterId,
+          response: "Thanks for reaching out! My rate is $500.",
+          channelIds,
+        },
       );
 
       expect(res.body.errors).toBeUndefined();
-      expect(res.body.data.actionCluster.status).toBe('Actioned');
+      expect(res.body.data.actionCluster.status).toBe("Actioned");
       expect(res.body.data.actionCluster.responseText).toBe(
-        'Thanks for reaching out! My rate is $500.',
+        "Thanks for reaching out! My rate is $500.",
       );
 
-      // Verify messages have replied_at set
+      // After actioning all messages, cluster is deleted (channelCount becomes 0)
+      // Verify we can't fetch it anymore
       const detail = await gql(
         `query ClusterDetail($clusterId: ID!) {
           cluster(id: $clusterId) { messages { id } }
@@ -461,17 +477,28 @@ describe('Similarity Buckets E2E', () => {
         { clusterId },
       );
 
-      // After actioning, messages are removed from cluster_messages
-      expect(detail.body.data.cluster.messages.length).toBe(0);
+      expect(detail.body.errors).toBeDefined();
+      expect(detail.body.errors[0].message).toContain("Cluster not found");
     });
 
-    it('should filter clusters by status', async () => {
+    it("should filter clusters by status", async () => {
+      // Get channel IDs first
+      const clusterDetail = await gql(
+        `query ClusterDetail($clusterId: ID!) {
+          cluster(id: $clusterId) { messages { channelId } }
+        }`,
+        { clusterId },
+      );
+      const channelIds = clusterDetail.body.data.cluster.messages.map(
+        (m: { channelId: string }) => m.channelId,
+      );
+
       // Action the cluster
       await gql(
-        `mutation Action($clusterId: ID!, $response: String!) {
-          actionCluster(id: $clusterId, responseText: $response) { id }
+        `mutation Action($clusterId: ID!, $response: String!, $channelIds: [String!]!) {
+          actionCluster(id: $clusterId, responseText: $response, channelIds: $channelIds) { id }
         }`,
-        { clusterId, response: 'Done!' },
+        { clusterId, response: "Done!", channelIds },
       );
 
       // Open clusters should be empty
@@ -479,23 +506,23 @@ describe('Similarity Buckets E2E', () => {
         `query ListClusters($creatorId: ID!, $status: ClusterStatus) {
           clusters(creatorId: $creatorId, status: $status) { id }
         }`,
-        { creatorId: CREATOR_ID, status: 'Open' },
+        { creatorId: CREATOR_ID, status: "Open" },
       );
       expect(open.body.data.clusters.length).toBe(0);
 
-      // Actioned should have our cluster
+      // Actioned clusters should also be empty (cluster was deleted after all messages actioned)
       const actioned = await gql(
         `query ListClusters($creatorId: ID!, $status: ClusterStatus) {
           clusters(creatorId: $creatorId, status: $status) { id }
         }`,
-        { creatorId: CREATOR_ID, status: 'Actioned' },
+        { creatorId: CREATOR_ID, status: "Actioned" },
       );
-      expect(actioned.body.data.clusters.length).toBe(1);
+      expect(actioned.body.data.clusters.length).toBe(0);
     });
   });
 
-  describe('Paid DM Exclusion', () => {
-    it('should not cluster paid DMs with similar free messages', async () => {
+  describe("Paid DM Exclusion", () => {
+    it("should not cluster paid DMs with similar free messages", async () => {
       // Regular message
       const regular = await gql(
         `mutation Ingest($input: IngestMessageInput!) {
@@ -504,11 +531,11 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-1',
-            text: 'What is your rate?',
-            channelId: 'channel-1',
-            visitorUserId: 'visitor-1',
-            visitorUsername: 'Jane',
+            messageId: "ext-msg-1",
+            text: "What is your rate?",
+            channelId: "channel-1",
+            visitorUserId: "visitor-1",
+            visitorUsername: "Jane",
             createdAt: new Date().toISOString(),
             isPaidDm: false,
           },
@@ -524,11 +551,11 @@ describe('Similarity Buckets E2E', () => {
         {
           input: {
             creatorId: CREATOR_ID,
-            messageId: 'ext-msg-2',
-            text: 'What is your rate?',
-            channelId: 'channel-2',
-            visitorUserId: 'visitor-2',
-            visitorUsername: 'Bob',
+            messageId: "ext-msg-2",
+            text: "What is your rate?",
+            channelId: "channel-2",
+            visitorUserId: "visitor-2",
+            visitorUsername: "Bob",
             createdAt: new Date().toISOString(),
             isPaidDm: true,
           },

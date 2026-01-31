@@ -178,7 +178,17 @@ export class ClustersService {
     return messages.rows.map((row: MessageRow) => this.mapMessageRow(row));
   }
 
-  async actionCluster(id: string, responseText: string): Promise<Cluster> {
+  async actionCluster(
+    id: string,
+    responseText: string,
+    channelIds: string[],
+  ): Promise<Cluster> {
+    if (!channelIds || channelIds.length === 0) {
+      throw new Error("At least one channel must be selected");
+    }
+
+    const clusterDeleted = true; // Always delete after actioning
+
     await this.db.withClient(async (client) => {
       await client.query("BEGIN");
       try {
@@ -197,7 +207,7 @@ export class ClustersService {
           throw new Error("Cluster not found");
         }
 
-        // Mark messages as replied
+        // Mark only selected messages as replied (they'll receive the response)
         await client.query(
           `
             UPDATE messages
@@ -207,11 +217,12 @@ export class ClustersService {
               FROM cluster_messages
               WHERE cluster_id = $1
             )
+            AND channel_id = ANY($2)
           `,
-          [id],
+          [id, channelIds],
         );
 
-        // Remove messages from cluster (they're now replied)
+        // Remove ALL messages from cluster (cluster is done/archived)
         await client.query(
           `
             DELETE FROM cluster_messages
@@ -220,12 +231,33 @@ export class ClustersService {
           [id],
         );
 
+        // Cluster is now empty - delete it
+        await client.query(`DELETE FROM clusters WHERE id = $1`, [id]);
+
         await client.query("COMMIT");
       } catch (error) {
         await client.query("ROLLBACK");
         throw error;
       }
     });
+
+    // If cluster was deleted, create a minimal representation for the response
+    if (clusterDeleted) {
+      return {
+        id,
+        creatorId: "", // Not needed in response
+        status: ClusterStatus.Actioned,
+        responseText,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        channelCount: 0,
+        previewText: undefined,
+        representativeVisitor: undefined,
+        additionalVisitorCount: 0,
+        visitorAvatarUrls: undefined,
+        messages: undefined,
+      };
+    }
 
     return this.getCluster(id);
   }

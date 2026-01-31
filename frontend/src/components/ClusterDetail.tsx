@@ -84,11 +84,20 @@ export default function ClusterDetail({ clusterId }: ClusterDetailProps) {
       return;
     }
 
+    // Get all non-removed channel IDs
+    const channelIds = cluster.messages?.map((msg) => msg.channelId) || [];
+
+    if (channelIds.length === 0) {
+      alert("No messages to send to");
+      return;
+    }
+
     try {
       await actionCluster({
         variables: {
           id: clusterId,
           responseText: responseText.trim(),
+          channelIds,
         },
       });
       setResponseText("");

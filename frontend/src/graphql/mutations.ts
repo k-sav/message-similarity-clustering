@@ -10,8 +10,16 @@ export const INGEST_MESSAGE = gql`
 `;
 
 export const ACTION_CLUSTER = gql`
-  mutation ActionCluster($id: ID!, $responseText: String!) {
-    actionCluster(id: $id, responseText: $responseText) {
+  mutation ActionCluster(
+    $id: ID!
+    $responseText: String!
+    $channelIds: [String!]!
+  ) {
+    actionCluster(
+      id: $id
+      responseText: $responseText
+      channelIds: $channelIds
+    ) {
       id
       status
     }

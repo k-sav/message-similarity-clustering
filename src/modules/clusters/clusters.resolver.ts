@@ -36,8 +36,9 @@ export class ClustersResolver {
   actionCluster(
     @Args("id", { type: () => ID }) id: string,
     @Args("responseText") responseText: string,
+    @Args("channelIds", { type: () => [String] }) channelIds: string[],
   ): Promise<Cluster> {
-    return this.clusters.actionCluster(id, responseText);
+    return this.clusters.actionCluster(id, responseText, channelIds);
   }
 
   @Mutation(() => Cluster, { nullable: true })
