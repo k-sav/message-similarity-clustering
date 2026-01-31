@@ -1,43 +1,43 @@
-import { Field, ID, Int, ObjectType } from '@nestjs/graphql'
-import { ClusterStatus } from './cluster-status.enum'
-import { Message } from '../messages/message.model'
+import { Field, ID, Int, ObjectType } from "@nestjs/graphql";
+import { ClusterStatus } from "./cluster-status.enum";
+import { Message } from "../messages/message.model";
 
 @ObjectType()
 export class Cluster {
   @Field(() => ID)
-  id!: string
+  id!: string;
 
   @Field()
-  creatorId!: string
+  creatorId!: string;
 
   @Field(() => ClusterStatus)
-  status!: ClusterStatus
+  status!: ClusterStatus;
 
   @Field({ nullable: true })
-  responseText?: string
+  responseText?: string;
 
   @Field()
-  createdAt!: Date
+  createdAt!: Date;
 
   @Field()
-  updatedAt!: Date
+  updatedAt!: Date;
 
   @Field(() => Int)
-  messageCount!: number
+  messageCount!: number;
 
   // UI list fields
   @Field(() => Int)
-  channelCount!: number
+  channelCount!: number;
 
   @Field({ nullable: true })
-  previewText?: string
+  previewText?: string;
 
   @Field({ nullable: true })
-  representativeVisitor?: string
+  representativeVisitor?: string;
 
   @Field(() => Int)
-  additionalVisitorCount!: number
+  additionalVisitorCount!: number;
 
   @Field(() => [Message], { nullable: true })
-  messages?: Message[]
+  messages?: Message[];
 }

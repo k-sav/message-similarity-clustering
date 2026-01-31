@@ -201,6 +201,9 @@ export class MessagesService {
                 `
                   INSERT INTO cluster_messages (cluster_id, message_id)
                   VALUES ($1, $2)
+                  ON CONFLICT (message_id) DO UPDATE SET
+                    cluster_id = EXCLUDED.cluster_id,
+                    status = 'active'
                 `,
                 [clusterId, matchedMessageId],
               );
