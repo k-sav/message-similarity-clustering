@@ -10,7 +10,7 @@ export default function MessageCard({ message, onRemove }: MessageCardProps) {
     <div className="py-4 border-b last:border-b-0">
       <div className="flex items-start gap-4">
         {/* Avatar */}
-        <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
+        <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0 overflow-hidden">
           {message.visitorAvatarUrl ? (
             <img
               src={message.visitorAvatarUrl}
@@ -37,7 +37,7 @@ export default function MessageCard({ message, onRemove }: MessageCardProps) {
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
             title="Reply"

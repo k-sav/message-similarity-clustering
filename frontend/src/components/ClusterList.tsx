@@ -63,7 +63,7 @@ export default function ClusterList({
             >
               <div className="flex items-center gap-2 mb-1">
                 {/* Avatar stack */}
-                <div className="flex -space-x-1.5 flex-shrink-0">
+                <div className="flex -space-x-1.5 shrink-0">
                   {cluster.visitorAvatarUrls?.slice(0, 3).map((url, idx) => (
                     <div
                       key={idx}

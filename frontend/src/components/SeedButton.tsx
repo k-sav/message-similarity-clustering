@@ -7,15 +7,21 @@ const CREATOR_ID = "00000000-0000-4000-a000-000000000001";
 
 export default function SeedButton() {
   const [isSeeding, setIsSeeding] = useState(false);
+  // Persist seed count across page reloads
+  const [seedCount, setSeedCount] = useState(() => {
+    const stored = localStorage.getItem("seedCount");
+    return stored ? parseInt(stored, 10) : 0;
+  });
   const [ingestMessage] = useMutation(INGEST_MESSAGE);
 
   const handleSeed = async () => {
     setIsSeeding(true);
-    console.log("Starting seed...");
+    console.log(`Starting seed run ${seedCount}...`);
     const iteration = Date.now(); // Always unique
 
-    // Generate random messages for this seed run (demonstrates semantic similarity)
-    const seedMessages = generateSeedMessages(3); // 3 messages per category = 12 total
+    // Generate messages with different variations for each seed run
+    // Using seedCount ensures consecutive seeds don't repeat messages
+    const seedMessages = generateSeedMessages(seedCount, 5); // 5 messages per category = 20 total
 
     try {
       for (let i = 0; i < seedMessages.length; i++) {
@@ -51,7 +57,12 @@ export default function SeedButton() {
         );
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
-      console.log("Seed complete! Waiting for clusters to form...");
+      const nextSeedCount = seedCount + 1;
+      setSeedCount(nextSeedCount); // Increment for next seed run
+      localStorage.setItem("seedCount", nextSeedCount.toString()); // Persist
+      console.log(
+        `Seed run ${seedCount} complete! Waiting for clusters to form...`,
+      );
       // Wait a bit for clustering to complete, then reload
       await new Promise((resolve) => setTimeout(resolve, 2000));
       window.location.reload();
@@ -73,7 +84,7 @@ export default function SeedButton() {
         {isSeeding ? "Seeding..." : "Seed Test Data"}
       </button>
       <p className="text-xs text-gray-500 text-center mt-2">
-        Generate 12 varied messages (shows semantic clustering)
+        Generate 20 varied messages (shows semantic clustering)
       </p>
     </div>
   );

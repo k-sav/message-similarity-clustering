@@ -119,13 +119,15 @@ const USERNAMES = {
 };
 
 /**
- * Generate a random selection of seed messages.
- * Each call returns different phrasings to demonstrate semantic clustering.
+ * Generate a selection of seed messages.
+ * Uses iteration-based selection to ensure different messages on consecutive seed runs.
  *
+ * @param seedIteration - Unique number for this seed run (e.g., timestamp % 10)
  * @param messagesPerCategory - Number of messages to generate per category (default: 3)
  * @returns Array of seed messages with varied phrasings
  */
 export function generateSeedMessages(
+  seedIteration: number,
   messagesPerCategory: number = 3,
 ): SeedMessage[] {
   const messages: SeedMessage[] = [];
@@ -138,32 +140,20 @@ export function generateSeedMessages(
     const texts = SEED_MESSAGE_POOL[category];
     const usernames = USERNAMES[category];
 
-    // Randomly select unique messages for this seed run
-    const selectedIndices = getRandomIndices(texts.length, messagesPerCategory);
+    // Non-overlapping selection: each seed uses a different block of messages
+    // Seed 0: [0,1,2,3,4], Seed 1: [5,6,7,8,9], Seed 2: wraps to [0,1,2,3,4]
+    const startIndex = (seedIteration * messagesPerCategory) % texts.length;
 
-    selectedIndices.forEach((textIndex, messageIndex) => {
+    for (let i = 0; i < messagesPerCategory; i++) {
+      const textIndex = (startIndex + i) % texts.length;
+
       messages.push({
         text: texts[textIndex],
-        username: usernames[messageIndex] || `User ${messageIndex}`,
-        userId: `user-${categoryIndex * 10 + messageIndex + 1}`,
+        username: usernames[i] || `User ${i}`,
+        userId: `user-${categoryIndex * 10 + i + 1}`,
       });
-    });
+    }
   });
 
   return messages;
-}
-
-/**
- * Get N random unique indices from a range [0, max)
- */
-function getRandomIndices(max: number, count: number): number[] {
-  const indices = Array.from({ length: max }, (_, i) => i);
-
-  // Fisher-Yates shuffle
-  for (let i = indices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [indices[i], indices[j]] = [indices[j], indices[i]];
-  }
-
-  return indices.slice(0, count);
 }
