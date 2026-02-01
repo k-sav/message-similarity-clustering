@@ -1,78 +1,9 @@
 import { useState } from "react";
 import { useMutation } from "@apollo/client/react";
 import { INGEST_MESSAGE } from "../graphql/mutations";
+import { generateSeedMessages } from "../data/seedMessages";
 
 const CREATOR_ID = "00000000-0000-4000-a000-000000000001";
-
-const SEED_MESSAGES = [
-  // Cluster 1: Pricing questions
-  {
-    text: "How much do you charge for collaborations?",
-    username: "Jane Ray",
-    userId: "user-1",
-  },
-  {
-    text: "What are your rates for sponsored content?",
-    username: "Bob Smith",
-    userId: "user-2",
-  },
-  {
-    text: "Could you share your pricing for brand partnerships?",
-    username: "Alice Johnson",
-    userId: "user-3",
-  },
-
-  // Cluster 2: Availability/Scheduling
-  {
-    text: "When are you available for a collaboration?",
-    username: "Charlie Brown",
-    userId: "user-4",
-  },
-  {
-    text: "What's your availability for next month?",
-    username: "Diana Prince",
-    userId: "user-5",
-  },
-  {
-    text: "Do you have time to work with us in the next few weeks?",
-    username: "Ethan Hunt",
-    userId: "user-6",
-  },
-
-  // Cluster 3: Content/Portfolio questions
-  {
-    text: "What kind of content do you create?",
-    username: "Fiona Apple",
-    userId: "user-7",
-  },
-  {
-    text: "Can you show me examples of your previous work?",
-    username: "George Martin",
-    userId: "user-8",
-  },
-  {
-    text: "Do you have a portfolio I can review?",
-    username: "Hannah Lee",
-    userId: "user-9",
-  },
-
-  // Cluster 4: Technical support
-  {
-    text: "I'm having trouble accessing the link you sent",
-    username: "Ian Malcolm",
-    userId: "user-10",
-  },
-  {
-    text: "The download link isn't working for me",
-    username: "Julia Roberts",
-    userId: "user-11",
-  },
-  {
-    text: "Can you resend the link? It seems to be broken",
-    username: "Kevin Hart",
-    userId: "user-12",
-  },
-];
 
 export default function SeedButton() {
   const [isSeeding, setIsSeeding] = useState(false);
@@ -82,9 +13,13 @@ export default function SeedButton() {
     setIsSeeding(true);
     console.log("Starting seed...");
     const iteration = Date.now(); // Always unique
+
+    // Generate random messages for this seed run (demonstrates semantic similarity)
+    const seedMessages = generateSeedMessages(3); // 3 messages per category = 12 total
+
     try {
-      for (let i = 0; i < SEED_MESSAGES.length; i++) {
-        const msg = SEED_MESSAGES[i];
+      for (let i = 0; i < seedMessages.length; i++) {
+        const msg = seedMessages[i];
         // Each user gets a unique ID per seed run (simulating different visitors asking same questions)
         const uniqueUserId = `${msg.userId}-${iteration}`;
         const uniqueUsername = `${msg.username} ${iteration % 1000}`; // Add unique suffix to username
@@ -111,7 +46,7 @@ export default function SeedButton() {
           },
         });
         console.log(
-          `Seeded message ${i + 1}/${SEED_MESSAGES.length}`,
+          `Seeded message ${i + 1}/${seedMessages.length}`,
           result.data,
         );
         await new Promise((resolve) => setTimeout(resolve, 200));
@@ -138,7 +73,7 @@ export default function SeedButton() {
         {isSeeding ? "Seeding..." : "Seed Test Data"}
       </button>
       <p className="text-xs text-gray-500 text-center mt-2">
-        Generate {SEED_MESSAGES.length} test messages
+        Generate 12 varied messages (shows semantic clustering)
       </p>
     </div>
   );
