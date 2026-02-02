@@ -158,13 +158,6 @@ SELECT
 - Time to understand cluster intent (user testing)
 - Creator satisfaction with preview text
 
-### Feature Flag
-
-```typescript
-FEATURE_FLAG: 'cluster_ai_summaries'
-Rollout: 10% → 50% → 100% over 2 weeks
-```
-
 ---
 
 ## 2. Smart Response Suggestions (✅ Implemented)
@@ -466,28 +459,195 @@ const cutoffDate = new Date(
 
 ---
 
+## 5. Multi-Message Context Concatenation (💡 Idea)
+
+**Goal:** Capture full conversation context by concatenating consecutive follower messages before clustering, improving semantic understanding and preventing "still waiting?" type messages from creating separate clusters.
+
+### Current Limitation
+
+Currently, only the latest message from a channel is stored in a cluster. If a follower sends multiple messages in a row:
+
+```
+Follower: "Hey! Do you do collabs?"
+Follower: "For my fitness brand"
+Follower: "Still waiting..."
+```
+
+Only "Still waiting..." gets clustered, which lacks context and may not cluster well.
+
+### Proposed Solution
+
+**Concatenate consecutive follower messages at ingestion time**, before passing to the clustering system.
+
+### Architecture
+
+**Implementation in ltfollowers processor** (ingestion layer):
+
+```typescript
+// In streamchat.tagging.processor.ts
+async function handleMessageClustering(input: MessageInput) {
+  // 1. Fetch recent channel history from Stream Chat
+  const channelHistory = await streamChatService.getChannelMessages(
+    input.channelId,
+    { limit: 10, id_lt: input.streamMessageId }, // Messages before current
+  );
+
+  // 2. Find consecutive messages from this follower (going backwards)
+  const followerMessages = [input.text]; // Start with current message
+
+  for (const msg of channelHistory) {
+    if (msg.user.id === input.followerUserId) {
+      followerMessages.unshift(msg.text); // Add to beginning
+    } else {
+      break; // Stop at first non-follower message (creator reply)
+    }
+  }
+
+  // 3. Concatenate with line breaks
+  const combinedText = followerMessages.join("\n\n");
+
+  // 4. Pass to clustering with full context
+  await messagingService.clusterMessage({
+    ...input,
+    text: combinedText, // ← Enhanced with context
+  });
+}
+```
+
+### Implementation Plan
+
+**Phase 1: Add Context Fetching**
+
+```typescript
+// Add method to StreamChatService
+async getRecentChannelMessages(
+  channelId: string,
+  beforeMessageId: string,
+  limit = 10
+): Promise<StreamMessage[]> {
+  const channel = this.getChannel(channelId);
+  const messages = await channel.query({
+    messages: {
+      limit,
+      id_lt: beforeMessageId
+    }
+  });
+  return messages.messages;
+}
+```
+
+**Phase 2: Concatenation Logic**
+
+```typescript
+// Add helper function
+function extractFollowerContext(
+  currentMessage: string,
+  currentUserId: string,
+  channelHistory: StreamMessage[],
+): string {
+  const messages = [currentMessage];
+
+  // Look backwards for consecutive follower messages
+  for (const msg of channelHistory) {
+    if (msg.user.id === currentUserId && !msg.deleted_at) {
+      messages.unshift(msg.text);
+    } else {
+      break; // Stop at creator reply or other user
+    }
+  }
+
+  // Join with double line breaks for readability
+  return messages.join("\n\n");
+}
+```
+
+**Phase 3: Update Processor**
+
+```typescript
+// In streamchat.tagging.processor.ts
+const combinedText = await this.extractFollowerMessageContext(
+  message.text,
+  message.user.id,
+  eventPayload.channel_id,
+  message.id,
+);
+
+await this.handleMessageClustering({
+  ...messageData,
+  text: combinedText, // Use combined text for clustering
+});
+```
+
+**Phase 4: Configuration**
+
+```typescript
+// Add to environment config
+CLUSTERING_CONTEXT_LOOKBACK = 10; // How many messages to look back
+CLUSTERING_CONTEXT_ENABLED = true; // Feature flag
+```
+
+### Benefits
+
+- ✅ **Better semantic understanding** - Full conversation context
+- ✅ **Solves "still waiting" problem** - Follow-ups cluster with original question
+- ✅ **No schema changes** - Clustering system is unchanged
+- ✅ **No UI changes** - Works transparently
+- ✅ **Natural conversation flow** - Respects creator/follower boundaries
+
+### Trade-offs
+
+**Pros:**
+
+- Significantly improves clustering quality
+- Handles multi-part questions naturally
+- Reduces false negatives (missed clusters)
+
+**Cons:**
+
+- Extra Stream Chat API call per message (~20-50ms latency)
+- Concatenated text is longer → higher embedding costs
+- Need to handle very long concatenations (token limits)
+
+### Edge Cases
+
+1. **Very long concatenations**: Limit to ~2000 characters or first 5 messages
+2. **Time gaps**: Consider adding time window (e.g., only concat if <30 minutes apart)
+3. **Deleted messages**: Skip deleted messages in history
+4. **Display**: Store both original and concatenated text? Or just concatenated?
+
+### Success Metrics
+
+- Reduction in "context-less" clusters (e.g., "??", "hello?", "still waiting")
+- Improvement in cluster quality (user testing)
+- % of messages that benefit from concatenation
+- Impact on embedding costs
+
+---
+
 ## Implementation Priority
 
 1. ~~**Smart Suggestions**~~ - ✅ Complete
-2. **LLM-Generated Summaries** - Medium complexity, good UX improvement
-3. **Auto-Archive** - Easiest, highest immediate value for inbox management
-4. **Analytics** - Most complex, strategic long-term value
+2. **Multi-Message Context** - High value, medium complexity, solves real UX issue
+3. **LLM-Generated Summaries** - Medium complexity, good UX improvement
+4. **Auto-Archive** - Easiest, highest immediate value for inbox management
+5. **Analytics** - Most complex, strategic long-term value
 
 ## Cost Estimates
 
 - ~~**Smart Suggestions**~~: ✅ Complete - Minimal cost (~$0.0001/cluster, only incremental storage)
+- **Multi-Message Context**: Slightly higher embedding costs (longer text), extra Stream Chat API call per message
 - **LLM-Generated Summaries**: ~$0.0001/cluster for gpt-4o-mini summary generation
 - **Analytics**: ~$0.001/cluster for GPT-4o-mini categorization
 - **Auto-Archive**: Free (just DB operations)
 
-## Feature Flags
+## Development Approach
 
-```typescript
-// Recommended Statsig gates
-const FEATURE_FLAGS = {
-  SMART_SUGGESTIONS: "soco_cluster_suggestions",
-  QUESTION_ANALYTICS: "soco_question_analytics",
-  AUTO_ARCHIVE: "soco_auto_archive",
-  AUTO_ARCHIVE_DAYS: "soco_auto_archive_days", // Dynamic config
-};
-```
+These enhancements will be implemented incrementally and deployed as they're ready, without feature flags:
+
+1. ~~**Smart Suggestions**~~ - ✅ Complete in POC, ready for production port
+2. **Multi-Message Context** - Next priority after MVP launch
+3. **LLM-Generated Summaries** - Follow-up improvement
+4. **Auto-Archive** - Inbox management enhancement
+5. **Analytics** - Long-term strategic feature
+
+Each enhancement builds on the core clustering infrastructure and can be developed independently.
