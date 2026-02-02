@@ -42,12 +42,26 @@ CREATE TABLE IF NOT EXISTS cluster_messages (
   UNIQUE (message_id)
 );
 
+CREATE TABLE IF NOT EXISTS response_templates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  creator_id text NOT NULL,
+  question_embedding vector(1536) NOT NULL,
+  response_text text NOT NULL,
+  usage_count integer NOT NULL DEFAULT 1,
+  last_used_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_messages_creator ON messages (creator_id);
 CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages (channel_id);
 CREATE INDEX IF NOT EXISTS idx_messages_replied ON messages (replied_at);
 CREATE INDEX IF NOT EXISTS idx_clusters_creator ON clusters (creator_id);
 CREATE INDEX IF NOT EXISTS idx_clusters_status ON clusters (status);
 CREATE INDEX IF NOT EXISTS idx_cluster_messages_cluster ON cluster_messages (cluster_id);
+CREATE INDEX IF NOT EXISTS idx_response_templates_creator ON response_templates (creator_id);
+CREATE INDEX IF NOT EXISTS idx_response_templates_embedding ON response_templates 
+  USING hnsw (question_embedding vector_cosine_ops) 
+  WITH (m = 16, ef_construction = 64);
 
 -- Vector similarity index for embedding search
 -- Using HNSW (Hierarchical Navigable Small World) for best query performance

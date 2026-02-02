@@ -12,7 +12,7 @@ export const apolloClient = new ApolloClient({
         fields: {
           clusters: {
             // Merge incoming data, don't replace
-            merge(existing = [], incoming) {
+            merge(_existing = [], incoming) {
               return incoming;
             },
           },

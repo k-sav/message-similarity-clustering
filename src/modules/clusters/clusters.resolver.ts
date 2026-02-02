@@ -28,8 +28,23 @@ export class ClustersResolver {
   }
 
   @Query(() => Cluster)
-  cluster(@Args("id", { type: () => ID }) id: string): Promise<Cluster> {
-    return this.clusters.getCluster(id);
+  async cluster(
+    @Args("id", { type: () => ID }) id: string,
+    @Args("creatorId") creatorId: string,
+  ): Promise<Cluster> {
+    const cluster = await this.clusters.getCluster(id);
+
+    // Fetch suggested responses
+    const suggestedResponses = await this.clusters.getSuggestedResponses(
+      id,
+      creatorId,
+    );
+
+    return {
+      ...cluster,
+      suggestedResponses:
+        suggestedResponses.length > 0 ? suggestedResponses : undefined,
+    };
   }
 
   @Mutation(() => Cluster)

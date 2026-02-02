@@ -34,6 +34,10 @@ describe("Similarity Buckets E2E", () => {
     await dbService.query(`DELETE FROM messages WHERE creator_id = $1`, [
       CREATOR_ID,
     ]);
+    await dbService.query(
+      `DELETE FROM response_templates WHERE creator_id = $1`,
+      [CREATOR_ID],
+    );
   });
 
   const gql = (query: string, variables?: Record<string, unknown>) =>
@@ -188,10 +192,10 @@ describe("Similarity Buckets E2E", () => {
 
       // Cluster should still have 2 channels (message 1 superseded by message 3)
       const detail = await gql(
-        `query ClusterDetail($clusterId: ID!) {
-          cluster(id: $clusterId) { id channelCount messages { id channelId } }
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) { id channelCount messages { id channelId } }
         }`,
-        { clusterId },
+        { clusterId, creatorId: CREATOR_ID },
       );
 
       expect(detail.body.data.cluster.channelCount).toBe(2);
@@ -313,8 +317,8 @@ describe("Similarity Buckets E2E", () => {
 
     it("should get cluster detail with messages", async () => {
       const res = await gql(
-        `query ClusterDetail($clusterId: ID!) {
-          cluster(id: $clusterId) {
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) {
             id
             status
             channelCount
@@ -326,7 +330,7 @@ describe("Similarity Buckets E2E", () => {
             }
           }
         }`,
-        { clusterId },
+        { clusterId, creatorId: CREATOR_ID },
       );
 
       expect(res.body.errors).toBeUndefined();
@@ -438,10 +442,10 @@ describe("Similarity Buckets E2E", () => {
     it("should action cluster and set status", async () => {
       // First get the channel IDs from the cluster
       const clusterDetail = await gql(
-        `query ClusterDetail($clusterId: ID!) {
-          cluster(id: $clusterId) { messages { channelId } }
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) { messages { channelId } }
         }`,
-        { clusterId },
+        { clusterId, creatorId: CREATOR_ID },
       );
       const channelIds = clusterDetail.body.data.cluster.messages.map(
         (m: { channelId: string }) => m.channelId,
@@ -471,10 +475,10 @@ describe("Similarity Buckets E2E", () => {
       // After actioning all messages, cluster is deleted (channelCount becomes 0)
       // Verify we can't fetch it anymore
       const detail = await gql(
-        `query ClusterDetail($clusterId: ID!) {
-          cluster(id: $clusterId) { messages { id } }
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) { messages { id } }
         }`,
-        { clusterId },
+        { clusterId, creatorId: CREATOR_ID },
       );
 
       expect(detail.body.errors).toBeDefined();
@@ -484,10 +488,10 @@ describe("Similarity Buckets E2E", () => {
     it("should filter clusters by status", async () => {
       // Get channel IDs first
       const clusterDetail = await gql(
-        `query ClusterDetail($clusterId: ID!) {
-          cluster(id: $clusterId) { messages { channelId } }
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) { messages { channelId } }
         }`,
-        { clusterId },
+        { clusterId, creatorId: CREATOR_ID },
       );
       const channelIds = clusterDetail.body.data.cluster.messages.map(
         (m: { channelId: string }) => m.channelId,
@@ -518,6 +522,263 @@ describe("Similarity Buckets E2E", () => {
         { creatorId: CREATOR_ID, status: "Actioned" },
       );
       expect(actioned.body.data.clusters.length).toBe(0);
+    });
+
+    it("should delete messages and cluster after actioning", async () => {
+      // Get cluster details first
+      const clusterDetail = await gql(
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) { 
+            messages { 
+              id
+              channelId 
+            } 
+          }
+        }`,
+        { clusterId, creatorId: CREATOR_ID },
+      );
+      const messageIds = clusterDetail.body.data.cluster.messages.map(
+        (m: { id: string }) => m.id,
+      );
+      const channelIds = clusterDetail.body.data.cluster.messages.map(
+        (m: { channelId: string }) => m.channelId,
+      );
+
+      // Action the cluster
+      await gql(
+        `mutation Action($clusterId: ID!, $response: String!, $channelIds: [String!]!) {
+          actionCluster(id: $clusterId, responseText: $response, channelIds: $channelIds) { id }
+        }`,
+        { clusterId, response: "Test response", channelIds },
+      );
+
+      // Verify messages were deleted
+      const messagesCheck = await dbService.query(
+        `SELECT COUNT(*) as count FROM messages WHERE id = ANY($1)`,
+        [messageIds],
+      );
+      expect(Number(messagesCheck.rows[0].count)).toBe(0);
+
+      // Verify cluster was deleted
+      const clusterCheck = await dbService.query(
+        `SELECT COUNT(*) as count FROM clusters WHERE id = $1`,
+        [clusterId],
+      );
+      expect(Number(clusterCheck.rows[0].count)).toBe(0);
+    });
+
+    it("should save response template when actioning cluster", async () => {
+      // Get channel IDs first
+      const clusterDetail = await gql(
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) { 
+            messages { channelId } 
+          }
+        }`,
+        { clusterId, creatorId: CREATOR_ID },
+      );
+      const channelIds = clusterDetail.body.data.cluster.messages.map(
+        (m: { channelId: string }) => m.channelId,
+      );
+
+      // Action cluster with response
+      await gql(
+        `mutation Action($clusterId: ID!, $response: String!, $channelIds: [String!]!) {
+          actionCluster(id: $clusterId, responseText: $response, channelIds: $channelIds) { id }
+        }`,
+        {
+          clusterId,
+          response: "Check my pricing page at example.com/pricing",
+          channelIds,
+        },
+      );
+
+      // Verify response template was created
+      const template = await dbService.query(
+        `SELECT * FROM response_templates WHERE creator_id = $1`,
+        [CREATOR_ID],
+      );
+      expect(template.rows.length).toBeGreaterThan(0);
+      expect(template.rows[0].response_text).toBe(
+        "Check my pricing page at example.com/pricing",
+      );
+      expect(template.rows[0].usage_count).toBe(1);
+    });
+
+    it("should suggest response for similar cluster", async () => {
+      // Action first cluster to create template
+      const clusterDetail1 = await gql(
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) { 
+            messages { channelId } 
+          }
+        }`,
+        { clusterId, creatorId: CREATOR_ID },
+      );
+      const channelIds1 = clusterDetail1.body.data.cluster.messages.map(
+        (m: { channelId: string }) => m.channelId,
+      );
+
+      await gql(
+        `mutation Action($clusterId: ID!, $response: String!, $channelIds: [String!]!) {
+          actionCluster(id: $clusterId, responseText: $response, channelIds: $channelIds) { id }
+        }`,
+        {
+          clusterId,
+          response: "My rates are on my website!",
+          channelIds: channelIds1,
+        },
+      );
+
+      // Create new cluster with EXACT same text (stub embeddings need exact match)
+      const msg3 = await gql(
+        `mutation Ingest($input: IngestMessageInput!) {
+          ingestMessage(input: $input) { clusterId }
+        }`,
+        {
+          input: {
+            creatorId: CREATOR_ID,
+            messageId: "ext-msg-3",
+            text: "What is your collaboration rate?", // Exact same text as original
+            channelId: "channel-3",
+            visitorUserId: "visitor-3",
+            visitorUsername: "Alice",
+            createdAt: new Date().toISOString(),
+            rawPayload: { user: { image: "https://example.com/alice.jpg" } },
+          },
+        },
+      );
+      const newClusterId = msg3.body.data.ingestMessage.clusterId;
+
+      // Fetch new cluster - should have suggested responses
+      const newCluster = await gql(
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) { 
+            suggestedResponses {
+              text
+              similarity
+            }
+          }
+        }`,
+        { clusterId: newClusterId, creatorId: CREATOR_ID },
+      );
+
+      // With stub embeddings, we need identical text for high similarity
+      // Should find the suggestion as the first result
+      expect(newCluster.body.data.cluster.suggestedResponses).toBeDefined();
+      expect(
+        newCluster.body.data.cluster.suggestedResponses.length,
+      ).toBeGreaterThan(0);
+      expect(newCluster.body.data.cluster.suggestedResponses[0].text).toBe(
+        "My rates are on my website!",
+      );
+      expect(
+        newCluster.body.data.cluster.suggestedResponses[0].similarity,
+      ).toBeGreaterThan(0.8);
+    });
+
+    it("should not create duplicate templates when reusing suggested response", async () => {
+      // Action first cluster to create initial template
+      const clusterDetail1 = await gql(
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) { 
+            messages { channelId } 
+          }
+        }`,
+        { clusterId, creatorId: CREATOR_ID },
+      );
+      const channelIds1 = clusterDetail1.body.data.cluster.messages.map(
+        (m: { channelId: string }) => m.channelId,
+      );
+
+      await gql(
+        `mutation Action($clusterId: ID!, $response: String!, $channelIds: [String!]!) {
+          actionCluster(id: $clusterId, responseText: $response, channelIds: $channelIds) { id }
+        }`,
+        {
+          clusterId,
+          response: "Check my website for rates",
+          channelIds: channelIds1,
+        },
+      );
+
+      // Verify one template was created
+      const templatesAfterFirst = await dbService.query(
+        `SELECT * FROM response_templates WHERE creator_id = $1 AND response_text = $2`,
+        [CREATOR_ID, "Check my website for rates"],
+      );
+      expect(templatesAfterFirst.rows.length).toBe(1);
+      expect(templatesAfterFirst.rows[0].usage_count).toBe(1);
+
+      // Create second cluster with same text
+      await gql(
+        `mutation Ingest($input: IngestMessageInput!) {
+          ingestMessage(input: $input) { clusterId }
+        }`,
+        {
+          input: {
+            creatorId: CREATOR_ID,
+            messageId: "ext-msg-4",
+            text: "What is your collaboration rate?",
+            channelId: "channel-4",
+            visitorUserId: "visitor-4",
+            visitorUsername: "Dave",
+            createdAt: new Date().toISOString(),
+            rawPayload: { user: { image: "https://example.com/dave.jpg" } },
+          },
+        },
+      );
+
+      const msg5 = await gql(
+        `mutation Ingest($input: IngestMessageInput!) {
+          ingestMessage(input: $input) { clusterId }
+        }`,
+        {
+          input: {
+            creatorId: CREATOR_ID,
+            messageId: "ext-msg-5",
+            text: "What is your collaboration rate?",
+            channelId: "channel-5",
+            visitorUserId: "visitor-5",
+            visitorUsername: "Eve",
+            createdAt: new Date().toISOString(),
+            rawPayload: { user: { image: "https://example.com/eve.jpg" } },
+          },
+        },
+      );
+      const cluster2Id = msg5.body.data.ingestMessage.clusterId;
+
+      // Get cluster and action with the SAME response text
+      const cluster2Detail = await gql(
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) { 
+            messages { channelId }
+          }
+        }`,
+        { clusterId: cluster2Id, creatorId: CREATOR_ID },
+      );
+      const channelIds2 = cluster2Detail.body.data.cluster.messages.map(
+        (m: { channelId: string }) => m.channelId,
+      );
+
+      await gql(
+        `mutation Action($clusterId: ID!, $response: String!, $channelIds: [String!]!) {
+          actionCluster(id: $clusterId, responseText: $response, channelIds: $channelIds) { id }
+        }`,
+        {
+          clusterId: cluster2Id,
+          response: "Check my website for rates", // Same as before
+          channelIds: channelIds2,
+        },
+      );
+
+      // Should still be only ONE template, but usage_count incremented
+      const templatesAfterSecond = await dbService.query(
+        `SELECT * FROM response_templates WHERE creator_id = $1 AND response_text = $2`,
+        [CREATOR_ID, "Check my website for rates"],
+      );
+      expect(templatesAfterSecond.rows.length).toBe(1); // No duplicate
+      expect(templatesAfterSecond.rows[0].usage_count).toBe(2); // Incremented
     });
   });
 

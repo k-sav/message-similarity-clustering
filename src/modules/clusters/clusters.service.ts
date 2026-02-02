@@ -191,51 +191,73 @@ export class ClustersService {
       throw new Error("At least one channel must be selected");
     }
 
-    const clusterDeleted = true; // Always delete after actioning
-
     await this.db.withClient(async (client) => {
       await client.query("BEGIN");
       try {
-        const update = await client.query(
-          `
-            UPDATE clusters
-            SET status = $2,
-                response_text = $3,
-                updated_at = now()
-            WHERE id = $1
-          `,
-          [id, ClusterStatus.Actioned, responseText],
-        );
-
-        if (!update.rowCount || update.rowCount === 0) {
-          throw new Error("Cluster not found");
-        }
-
-        // Mark only selected messages as replied (they'll receive the response)
-        await client.query(
-          `
-            UPDATE messages
-            SET replied_at = now()
-            WHERE id IN (
-              SELECT message_id
-              FROM cluster_messages
-              WHERE cluster_id = $1
-            )
-            AND channel_id = ANY($2)
-          `,
-          [id, channelIds],
-        );
-
-        // Remove ALL messages from cluster (cluster is done/archived)
-        await client.query(
-          `
-            DELETE FROM cluster_messages
-            WHERE cluster_id = $1
-          `,
+        // 1. Get cluster info and earliest message embedding
+        const clusterData = await client.query(
+          `SELECT c.creator_id, m.embedding
+           FROM clusters c
+           JOIN cluster_messages cm ON c.id = cm.cluster_id
+           JOIN messages m ON cm.message_id = m.id
+           WHERE c.id = $1
+           ORDER BY m.created_at ASC
+           LIMIT 1`,
           [id],
         );
 
-        // Cluster is now empty - delete it
+        if (!clusterData.rows[0]) {
+          throw new Error("Cluster not found");
+        }
+
+        const { creator_id, embedding } = clusterData.rows[0];
+
+        // 2. Check if this exact response template already exists
+        const existingTemplate = await client.query(
+          `SELECT id, usage_count 
+           FROM response_templates 
+           WHERE creator_id = $1 
+             AND response_text = $2
+             AND question_embedding = $3
+           LIMIT 1`,
+          [creator_id, responseText, embedding],
+        );
+
+        if (existingTemplate.rows.length > 0) {
+          // Template exists - just increment usage count
+          await client.query(
+            `UPDATE response_templates 
+             SET usage_count = usage_count + 1,
+                 last_used_at = now()
+             WHERE id = $1`,
+            [existingTemplate.rows[0].id],
+          );
+        } else {
+          // New template - insert it
+          await client.query(
+            `INSERT INTO response_templates (
+              creator_id, 
+              question_embedding, 
+              response_text, 
+              usage_count,
+              last_used_at
+            ) VALUES ($1, $2, $3, 1, now())`,
+            [creator_id, embedding, responseText],
+          );
+        }
+
+        // 3. Delete all messages in cluster (CASCADE handles cluster_messages)
+        await client.query(
+          `DELETE FROM messages 
+           WHERE id IN (
+             SELECT message_id 
+             FROM cluster_messages 
+             WHERE cluster_id = $1
+           )`,
+          [id],
+        );
+
+        // 4. Delete cluster
         await client.query(`DELETE FROM clusters WHERE id = $1`, [id]);
 
         await client.query("COMMIT");
@@ -245,25 +267,21 @@ export class ClustersService {
       }
     });
 
-    // If cluster was deleted, create a minimal representation for the response
-    if (clusterDeleted) {
-      return {
-        id,
-        creatorId: "", // Not needed in response
-        status: ClusterStatus.Actioned,
-        responseText,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        channelCount: 0,
-        previewText: undefined,
-        representativeVisitor: undefined,
-        additionalVisitorCount: 0,
-        visitorAvatarUrls: undefined,
-        messages: undefined,
-      };
-    }
-
-    return this.getCluster(id);
+    // Return minimal representation since cluster is deleted
+    return {
+      id,
+      creatorId: "", // Not needed in response
+      status: ClusterStatus.Actioned,
+      responseText,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      channelCount: 0,
+      previewText: undefined,
+      representativeVisitor: undefined,
+      additionalVisitorCount: 0,
+      visitorAvatarUrls: undefined,
+      messages: undefined,
+    };
   }
 
   async removeClusterMessage(
@@ -326,6 +344,51 @@ export class ClustersService {
     }
 
     return this.getCluster(clusterId);
+  }
+
+  async getSuggestedResponses(
+    clusterId: string,
+    creatorId: string,
+  ): Promise<Array<{ text: string; similarity: number }>> {
+    // Get cluster's earliest message embedding
+    const result = await this.db.query<{ embedding: string }>(
+      `SELECT m.embedding
+       FROM cluster_messages cm
+       JOIN messages m ON cm.message_id = m.id
+       WHERE cm.cluster_id = $1
+       ORDER BY m.created_at ASC
+       LIMIT 1`,
+      [clusterId],
+    );
+
+    if (!result.rows[0]?.embedding) {
+      return [];
+    }
+
+    const embedding = result.rows[0].embedding;
+
+    // Find top 3 most similar past responses (similarity > 0.8)
+    const suggestions = await this.db.query<{
+      response_text: string;
+      similarity: number;
+    }>(
+      `SELECT response_text,
+              (1 - (question_embedding <=> $1)) as similarity
+       FROM response_templates
+       WHERE creator_id = $2
+         AND (1 - (question_embedding <=> $1)) > 0.8
+       ORDER BY
+         similarity DESC,
+         usage_count DESC,
+         last_used_at DESC
+       LIMIT 3`,
+      [embedding, creatorId],
+    );
+
+    return suggestions.rows.map((row) => ({
+      text: row.response_text,
+      similarity: Number(row.similarity.toFixed(3)),
+    }));
   }
 
   private mapClusterRow(row: ClusterRow): Cluster {

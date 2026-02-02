@@ -1,3 +1,8 @@
+export interface SuggestedResponse {
+  text: string;
+  similarity: number;
+}
+
 export interface Cluster {
   id: string;
   status: "Open" | "Actioned";
@@ -8,6 +13,7 @@ export interface Cluster {
   visitorAvatarUrls?: string[];
   createdAt: string;
   responseText?: string;
+  suggestedResponses?: SuggestedResponse[];
   messages?: Message[];
 }
 

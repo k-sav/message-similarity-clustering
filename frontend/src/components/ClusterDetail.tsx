@@ -21,9 +21,13 @@ export default function ClusterDetail({ clusterId }: ClusterDetailProps) {
   const { loading, error, data, refetch } = useQuery<GetClusterData>(
     GET_CLUSTER,
     {
-      variables: { id: clusterId },
+      variables: { id: clusterId, creatorId: CREATOR_ID },
     },
   );
+
+  const cluster = data?.cluster;
+
+  // Don't auto-fill - let user click suggestion pills to fill input
 
   const [actionCluster, { loading: actionLoading }] = useMutation(
     ACTION_CLUSTER,
@@ -61,7 +65,6 @@ export default function ClusterDetail({ clusterId }: ClusterDetailProps) {
   if (error)
     return <div className="p-4 text-red-500">Error: {error.message}</div>;
 
-  const cluster = data?.cluster;
   if (!cluster)
     return <div className="p-4 text-gray-500">Cluster not found</div>;
 
@@ -179,6 +182,28 @@ export default function ClusterDetail({ clusterId }: ClusterDetailProps) {
       {/* Reply input */}
       {messageCount > 0 && (
         <div className="border-t bg-white px-6 py-4">
+          {cluster.suggestedResponses &&
+            cluster.suggestedResponses.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs text-gray-500 mb-2">
+                  Suggested responses based on similar past replies:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {cluster.suggestedResponses.map((suggestion, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setResponseText(suggestion.text)}
+                      className="px-3 py-1.5 text-xs bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200 transition-colors"
+                      title={`Similarity: ${(suggestion.similarity * 100).toFixed(1)}%`}
+                    >
+                      {suggestion.text.length > 50
+                        ? `${suggestion.text.substring(0, 50)}...`
+                        : suggestion.text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           <div className="flex gap-3 items-center">
             <button className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
               <svg

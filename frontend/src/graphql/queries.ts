@@ -24,8 +24,8 @@ export const LIST_CLUSTERS = gql`
 `;
 
 export const GET_CLUSTER = gql`
-  query GetCluster($id: ID!) {
-    cluster(id: $id) {
+  query GetCluster($id: ID!, $creatorId: String!) {
+    cluster(id: $id, creatorId: $creatorId) {
       id
       status
       responseText
@@ -34,6 +34,10 @@ export const GET_CLUSTER = gql`
       representativeVisitor
       additionalVisitorCount
       visitorAvatarUrls
+      suggestedResponses {
+        text
+        similarity
+      }
       messages {
         id
         text
