@@ -46,7 +46,7 @@ docker-compose up --build
                   ↓
 4. UI shows clusters with 2+ messages
                   ↓
-5. Creator replies → All messages marked as actioned
+5. Creator replies → Template saved, all messages + cluster deleted
 ```
 
 ## Key Behaviors
