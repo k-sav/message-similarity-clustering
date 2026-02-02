@@ -194,9 +194,9 @@ export class ClustersService {
     await this.db.withClient(async (client) => {
       await client.query("BEGIN");
       try {
-        // 1. Get cluster info and earliest message embedding
+        // 1. Get cluster info, earliest message embedding, and question text
         const clusterData = await client.query(
-          `SELECT c.creator_id, m.embedding
+          `SELECT c.creator_id, m.embedding, m.text as question_text
            FROM clusters c
            JOIN cluster_messages cm ON c.id = cm.cluster_id
            JOIN messages m ON cm.message_id = m.id
@@ -210,7 +210,7 @@ export class ClustersService {
           throw new Error("Cluster not found");
         }
 
-        const { creator_id, embedding } = clusterData.rows[0];
+        const { creator_id, embedding, question_text } = clusterData.rows[0];
 
         // 2. Check if this exact response template already exists
         const existingTemplate = await client.query(
@@ -233,16 +233,17 @@ export class ClustersService {
             [existingTemplate.rows[0].id],
           );
         } else {
-          // New template - insert it
+          // New template - insert it with question text
           await client.query(
             `INSERT INTO response_templates (
               creator_id, 
-              question_embedding, 
+              question_embedding,
+              question_text,
               response_text, 
               usage_count,
               last_used_at
-            ) VALUES ($1, $2, $3, 1, now())`,
-            [creator_id, embedding, responseText],
+            ) VALUES ($1, $2, $3, $4, 1, now())`,
+            [creator_id, embedding, question_text, responseText],
           );
         }
 

@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS cluster_messages (
 CREATE TABLE IF NOT EXISTS response_templates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   creator_id text NOT NULL,
+  question_text text,
   question_embedding vector(1536) NOT NULL,
   response_text text NOT NULL,
   usage_count integer NOT NULL DEFAULT 1,
