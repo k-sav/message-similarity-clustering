@@ -780,6 +780,53 @@ describe("Similarity Buckets E2E", () => {
       expect(templatesAfterSecond.rows.length).toBe(1); // No duplicate
       expect(templatesAfterSecond.rows[0].usage_count).toBe(2); // Incremented
     });
+
+    it("should delete cluster without creating response template", async () => {
+      // Get message IDs before deletion
+      const clusterDetail = await gql(
+        `query ClusterDetail($clusterId: ID!, $creatorId: String!) {
+          cluster(id: $clusterId, creatorId: $creatorId) { 
+            messages { id channelId }
+          }
+        }`,
+        { clusterId, creatorId: CREATOR_ID },
+      );
+      const messageIds = clusterDetail.body.data.cluster.messages.map(
+        (m: { id: string }) => m.id,
+      );
+
+      // Delete cluster
+      const deleteResult = await gql(
+        `mutation DeleteCluster($id: ID!) {
+          deleteCluster(id: $id)
+        }`,
+        { id: clusterId },
+      );
+
+      expect(deleteResult.body.errors).toBeUndefined();
+      expect(deleteResult.body.data.deleteCluster).toBe(true);
+
+      // Verify messages were deleted
+      const messagesCheck = await dbService.query(
+        `SELECT COUNT(*) as count FROM messages WHERE id = ANY($1)`,
+        [messageIds],
+      );
+      expect(Number(messagesCheck.rows[0].count)).toBe(0);
+
+      // Verify cluster was deleted
+      const clusterCheck = await dbService.query(
+        `SELECT COUNT(*) as count FROM clusters WHERE id = $1`,
+        [clusterId],
+      );
+      expect(Number(clusterCheck.rows[0].count)).toBe(0);
+
+      // Verify NO response template was created (delete doesn't save templates)
+      const templatesCheck = await dbService.query(
+        `SELECT COUNT(*) as count FROM response_templates WHERE creator_id = $1`,
+        [CREATOR_ID],
+      );
+      expect(Number(templatesCheck.rows[0].count)).toBe(0);
+    });
   });
 
   describe("Paid DM Exclusion", () => {

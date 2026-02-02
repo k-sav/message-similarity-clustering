@@ -64,6 +64,14 @@ export class ClustersResolver {
     return this.clusters.removeClusterMessage(clusterId, messageId);
   }
 
+  @Mutation(() => Boolean)
+  async deleteCluster(
+    @Args("id", { type: () => ID }) id: string,
+  ): Promise<boolean> {
+    await this.clusters.deleteCluster(id);
+    return true;
+  }
+
   @ResolveField(() => [Message])
   messages(@Parent() cluster: Cluster): Promise<Message[]> {
     if (cluster.messages) {

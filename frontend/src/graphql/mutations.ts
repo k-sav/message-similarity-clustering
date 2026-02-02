@@ -34,3 +34,9 @@ export const REMOVE_MESSAGE = gql`
     }
   }
 `;
+
+export const DELETE_CLUSTER = gql`
+  mutation DeleteCluster($id: ID!) {
+    deleteCluster(id: $id)
+  }
+`;

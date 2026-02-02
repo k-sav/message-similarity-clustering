@@ -284,6 +284,42 @@ export class ClustersService {
     };
   }
 
+  async deleteCluster(id: string): Promise<void> {
+    await this.db.withClient(async (client) => {
+      await client.query("BEGIN");
+      try {
+        // Verify cluster exists
+        const cluster = await client.query(
+          `SELECT id FROM clusters WHERE id = $1`,
+          [id],
+        );
+
+        if (!cluster.rows[0]) {
+          throw new Error("Cluster not found");
+        }
+
+        // Delete all messages in cluster (CASCADE handles cluster_messages)
+        await client.query(
+          `DELETE FROM messages 
+           WHERE id IN (
+             SELECT message_id 
+             FROM cluster_messages 
+             WHERE cluster_id = $1
+           )`,
+          [id],
+        );
+
+        // Delete cluster
+        await client.query(`DELETE FROM clusters WHERE id = $1`, [id]);
+
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
+    });
+  }
+
   async removeClusterMessage(
     clusterId: string,
     messageId: string,

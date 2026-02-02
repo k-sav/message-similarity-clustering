@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
 import { GET_CLUSTER, LIST_CLUSTERS } from "../graphql/queries";
-import { ACTION_CLUSTER, REMOVE_MESSAGE } from "../graphql/mutations";
+import {
+  ACTION_CLUSTER,
+  REMOVE_MESSAGE,
+  DELETE_CLUSTER,
+} from "../graphql/mutations";
 import MessageCard from "./MessageCard";
 import type { Message, Cluster } from "../types";
 
@@ -49,6 +53,19 @@ export default function ClusterDetail({ clusterId }: ClusterDetailProps) {
     onCompleted: () => {
       refetch();
     },
+    refetchQueries: [
+      {
+        query: LIST_CLUSTERS,
+        variables: {
+          creatorId: CREATOR_ID,
+          status: "Open",
+          minChannelCount: 2,
+        },
+      },
+    ],
+  });
+
+  const [deleteCluster] = useMutation(DELETE_CLUSTER, {
     refetchQueries: [
       {
         query: LIST_CLUSTERS,
@@ -113,34 +130,71 @@ export default function ClusterDetail({ clusterId }: ClusterDetailProps) {
     }
   };
 
+  const handleDeleteCluster = async () => {
+    if (
+      !confirm("Delete this cluster without responding? This cannot be undone.")
+    ) {
+      return;
+    }
+
+    try {
+      await deleteCluster({
+        variables: {
+          id: clusterId,
+        },
+      });
+      alert("Cluster deleted successfully!");
+      window.location.reload();
+    } catch (err) {
+      console.error("Error deleting cluster:", err);
+      alert("Failed to delete cluster");
+    }
+  };
+
   const messageCount = cluster.messages?.length || 0;
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* Header with avatars */}
       <div className="px-6 py-6 bg-white border-b">
-        <div className="flex items-center gap-3">
-          {cluster.visitorAvatarUrls?.slice(0, 3).map((url, idx) => (
-            <div
-              key={idx}
-              className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm"
-              style={{ marginLeft: idx > 0 ? "-12px" : "0", zIndex: 3 - idx }}
-            >
-              {url ? (
-                <img src={url} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs">
-                  ?
-                </div>
-              )}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {cluster.visitorAvatarUrls?.slice(0, 3).map((url, idx) => (
+              <div
+                key={idx}
+                className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm"
+                style={{
+                  marginLeft: idx > 0 ? "-12px" : "0",
+                  zIndex: 3 - idx,
+                }}
+              >
+                {url ? (
+                  <img
+                    src={url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs">
+                    ?
+                  </div>
+                )}
+              </div>
+            ))}
+            <div>
+              <h2 className="text-base font-semibold">
+                {cluster.representativeVisitor || "Unknown"} +{" "}
+                {cluster.additionalVisitorCount || 0} more
+              </h2>
             </div>
-          ))}
-          <div>
-            <h2 className="text-base font-semibold">
-              {cluster.representativeVisitor || "Unknown"} +{" "}
-              {cluster.additionalVisitorCount || 0} more
-            </h2>
           </div>
+          <button
+            onClick={handleDeleteCluster}
+            className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+            title="Delete cluster without responding"
+          >
+            Delete
+          </button>
         </div>
       </div>
 
